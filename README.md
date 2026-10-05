@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://i.ibb.co/pvWzYPYT/IMG-3374.png" alt="Nexa UI" width="180">
+</p>
+
 # Nexa UI Library
 
 Nexa is a Drawing-based Roblox UI library designed for clean, modern
@@ -43,6 +47,13 @@ Nexa includes:
 -   Window show/hide animations
 -   Startup splash support
 -   Runtime theme switching
+-   Custom window opacity
+-   Window/sidebar logo images
+-   Window background images
+-   Clickable profile avatar with hideable profile names
+-   Persistent Settings menu-key override
+-   Dynamic overlay width modes (`false`, `true`, and `"expand"`)
+-   Dynamic overlay height
 
 ------------------------------------------------------------------------
 
@@ -61,7 +72,8 @@ Nexa:CreateWindow({
     Title = "Nexa",
     Subtitle = "Nexa Example",
     MenuKey = "p",
-    Theme = "Midnight",
+    Theme = "Obsidian",
+    Opacity = 100,
 })
 ```
 
@@ -78,8 +90,12 @@ Nexa:CreateWindow({
     Height = 520,
 
     MenuKey = "p",
-    Theme = "Midnight",
+    Theme = "Obsidian",
+    Opacity = 100,
     Background = "particles",
+
+    Logo = "https://example.com/logo.png",
+    BackgroundImage = "https://example.com/background.png",
 
     NotificationPosition = "top_right",
 
@@ -88,12 +104,46 @@ Nexa:CreateWindow({
     Splash = {
         Duration = 3,
         Title = "Nexa",
+        Image = "https://example.com/logo.png",
     },
 })
 ```
 
 You do not need to specify every option. Nexa supplies defaults for
 anything you leave out.
+
+### Window appearance options
+
+`CreateWindow` supports optional appearance properties such as:
+
+``` lua
+Nexa:CreateWindow({
+    Title = "Nexa",
+
+    -- 35-100. Omit this to use Nexa's normal/default opacity.
+    Opacity = 100,
+
+    -- Shown in Nexa's branded logo area.
+    Logo = "https://example.com/logo.png",
+
+    -- Drawn behind the window content.
+    BackgroundImage = "https://example.com/background.png",
+
+    Splash = {
+        -- Optional image used by the startup/loading splash.
+        Image = "https://example.com/logo.png",
+    },
+})
+```
+
+`Opacity` can be changed later from Nexa's built-in Settings page. The
+Settings page also includes a **Menu key** keybind; changing it overrides
+the `MenuKey` originally supplied by the script, and that key can be
+stored in Nexa configs.
+
+The profile area in the title bar displays the local player's avatar,
+display name, and username. Clicking the avatar hides or shows the two
+name lines.
 
 ------------------------------------------------------------------------
 
@@ -762,7 +812,7 @@ Change the theme when creating the window:
 ``` lua
 Nexa:CreateWindow({
     Title = "Nexa",
-    Theme = "Midnight",
+    Theme = "Obsidian",
 })
 ```
 
@@ -821,6 +871,17 @@ particles
 aurora
 snow
 rainfall
+```
+
+A static image can also be placed behind the window content independently
+of the animated effect:
+
+``` lua
+Nexa:CreateWindow({
+    Title = "Nexa",
+    Background = "particles",
+    BackgroundImage = "https://example.com/background.png",
+})
 ```
 
 ------------------------------------------------------------------------
@@ -951,6 +1012,14 @@ local Overlay = Nexa:CreateOverlay({
     Width = 220,
     Height = 120,
     Visible = true,
+
+    -- false = fixed width
+    -- true = fully dynamic width
+    -- "expand" = Width is the minimum/base width
+    DynamicWidth = "expand",
+
+    DynamicHeight = true,
+    MaxChars = 50,
 })
 ```
 
@@ -985,8 +1054,15 @@ Overlay:Toggle()
 Overlay:SetTitle("New Title")
 Overlay:SetSize(250, 150)
 Overlay:SetPosition(100, 100)
+Overlay:SetDynamicWidth("expand")
+Overlay:SetDynamicHeight(true)
 Overlay:Clear()
 ```
+
+With `DynamicWidth = "expand"`, the configured `Width` acts as the base
+width. The overlay expands when its content needs more room and contracts
+back to that base width when the longer content disappears. `MaxChars`
+still caps automatic content width.
 
 ------------------------------------------------------------------------
 
@@ -1031,7 +1107,8 @@ Nexa:CreateWindow({
     Title = "Example Script",
     Subtitle = "Made with Nexa",
     MenuKey = "p",
-    Theme = "Midnight",
+    Theme = "Obsidian",
+    Opacity = 100,
     Background = "particles",
 })
 
@@ -1221,7 +1298,14 @@ end)
 
 ``` lua
 -- Window
-Nexa:CreateWindow({...})
+Nexa:CreateWindow({
+    Title = "Nexa",
+    MenuKey = "p",
+    Theme = "Obsidian",
+    Opacity = 100,
+    Logo = "https://example.com/logo.png",
+    BackgroundImage = "https://example.com/background.png",
+})
 
 -- Tabs
 local Tab = Nexa:AddTab({...})
@@ -1259,9 +1343,16 @@ Nexa:LoadConfig("default")
 Nexa:DeleteConfig("default")
 
 -- Appearance
-Nexa:SetTheme("Midnight")
+Nexa:SetTheme("Obsidian")
 Nexa:NextTheme()
 Nexa:SetBackground("particles")
+
+-- Overlays
+local Overlay = Nexa:CreateOverlay({
+    Width = 150,
+    DynamicWidth = "expand",
+    DynamicHeight = true,
+})
 
 -- Notifications
 Nexa:Notify({...})
@@ -1296,6 +1387,9 @@ Nexa:Destroy()
     compact layout.
 -   Call `Nexa:Destroy()` when unloading your script.
 -   The menu key can be configured with `MenuKey` in `CreateWindow`.
+-   The built-in Settings **Menu key** control can override that key at runtime and save it in configs.
+-   Use `Opacity` in `CreateWindow` when a script needs a specific starting window opacity.
+-   `Logo`, `BackgroundImage`, and `Splash.Image` can use separate images or the same image.
 
 ------------------------------------------------------------------------
 

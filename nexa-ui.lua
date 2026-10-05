@@ -186,6 +186,7 @@ local Layout = {
     SectionColumnGap = 12,
     SectionPadX     = 16,
     SectionPadY     = 12,
+    SectionBottomPad = 6,
     SectionCorner   = 12,
     SectionTitleH   = 18,
     SectionDescH    = 16,
@@ -1446,6 +1447,13 @@ local State = {
     Logo           = nil,
     LogoSource     = nil,
     LogoSize       = 30,
+    ProfileAvatar  = nil,
+    ProfileAvatarSource = nil,
+    ProfileAvatarLoading = false,
+    ProfileDisplayName = nil,
+    ProfileUsername = nil,
+    ProfileNamesVisible = true,
+    ProfileAvatarRect = nil,
     BackgroundImage = nil,
     BackgroundImageSource = nil,
     OpenDropdownWheelRect = nil,
@@ -2498,6 +2506,13 @@ local function DrawTitleBar(title, subtitle)
     local th = State.Theme
     local island = State.Island
 
+    local profileRect = State.ProfileAvatarRect
+    if Input.Click and profileRect
+    and MouseIn(profileRect.X, profileRect.Y, profileRect.W, profileRect.H) then
+        State.ProfileNamesVisible = not State.ProfileNamesVisible
+        Input.Click = false
+    end
+
     local function drawIslandIcon(action, name, x, y, size, color, accentColor, z, alpha, activeAlpha)
         local key = string.lower(tostring(name or "sparkles"))
         if key == "performance" then key = "eye" end
@@ -2587,6 +2602,57 @@ local function DrawTitleBar(title, subtitle)
     local islandX = islandCX - currentHalfW
     local islandW = currentHalfW * 2
     local islandY = math.floor(State.Y + (Layout.TopbarH - islandH) * 0.5 + 0.5)
+
+    do
+        local avatarSize = 30
+        local avatarX = State.X + State.W - 12 - avatarSize
+        local avatarY = State.Y + math.floor((Layout.TopbarH - avatarSize) * 0.5 + 0.5)
+        local profileRight = avatarX - 9
+        local profileLeft = islandX + islandW + 12
+        local profileW = math.max(0, profileRight - profileLeft)
+
+        State.ProfileAvatarRect = {X = avatarX, Y = avatarY, W = avatarSize, H = avatarSize}
+
+        if profileW >= 58 then
+            local displayName = tostring(State.ProfileDisplayName or LocalPlayer.DisplayName or LocalPlayer.Name or "Player")
+            local username = "@" .. tostring(State.ProfileUsername or LocalPlayer.Name or "Player")
+            local displaySize = 14
+            local usernameSize = 12
+
+            local function fitRight(text, size, font, maxW)
+                if TextWidth(text, size, font) <= maxW then return text end
+                local suffix = "..."
+                while #text > 1 and TextWidth(text .. suffix, size, font) > maxW do
+                    text = string.sub(text, 1, #text - 1)
+                end
+                return text .. suffix
+            end
+
+            displayName = fitRight(displayName, displaySize, Fonts.SystemBold, profileW)
+            username = fitRight(username, usernameSize, Fonts.SystemBold, profileW)
+
+            local displayW = TextWidth(displayName, displaySize, Fonts.SystemBold)
+            local usernameW = TextWidth(username, usernameSize, Fonts.SystemBold)
+            local centerY = State.Y + Layout.TopbarH * 0.5
+
+            if State.ProfileNamesVisible ~= false then
+                Text(displayName, profileRight - displayW, centerY - 15,
+                     th.Text, displaySize, Fonts.SystemBold, 35, 0.98, profileW, false)
+                Text(username, profileRight - usernameW, centerY + 2,
+                     th.TextMuted, usernameSize, Fonts.SystemBold, 35, 0.88, profileW, false)
+            end
+
+            if State.ProfileAvatar then
+                DrawPicture(State.ProfileAvatar, avatarX, avatarY,
+                            avatarSize, avatarSize, Layer(35), FrameAlpha, avatarSize * 0.5)
+                Stroke(avatarX - 2, avatarY - 2, avatarSize + 4, avatarSize + 4,
+                       th.Accent, 34, (avatarSize + 4) * 0.5, 0.95)
+            end
+        else
+            State.ProfileAvatarRect = nil
+            HidePicture(State.ProfileAvatar)
+        end
+    end
 
     if State.ShowGameName and State.GameName and State.GameName ~= "" then
         local gameText = string.upper(tostring(State.GameName))
@@ -3782,7 +3848,7 @@ local function MeasureSection(section, w)
 
     local headerH = GetSectionHeaderHeight(section)
     local contentMinH = math.max(Layout.RowHeight, contentH)
-    local fullPanelH = Layout.SectionPadY + contentMinH + Layout.SectionPadY
+    local fullPanelH = Layout.SectionPadY + contentMinH + Layout.SectionPadY + Layout.SectionBottomPad
     local collapse = Clamp(section._collapse or 0, 0, 1)
     local visiblePanelH = fullPanelH * (1 - collapse)
 
@@ -3822,7 +3888,7 @@ local function DrawSection(section, x, y, w)
     end
     if contentH > 0 then contentH = contentH - Layout.RowGapY end
 
-    local fullContentH = Layout.SectionPadY + math.max(Layout.RowHeight, contentH) + Layout.SectionPadY
+    local fullContentH = Layout.SectionPadY + math.max(Layout.RowHeight, contentH) + Layout.SectionPadY + Layout.SectionBottomPad
     local visibleContentH = math.max(0, fullContentH * (1 - collapse))
     local totalH = headerH + visibleContentH
 
@@ -5969,6 +6035,20 @@ function HUDBox.new(opts)
     if dynamic == nil then dynamic = opts.dynamic end
     dynamic = dynamic and true or false
 
+    local dynamicWidth = opts.DynamicWidth
+    if dynamicWidth == nil then dynamicWidth = opts.dynamicWidth end
+    if dynamicWidth == nil then dynamicWidth = dynamic end
+    if type(dynamicWidth) == "string" and string.lower(dynamicWidth) == "expand" then
+        dynamicWidth = "expand"
+    else
+        dynamicWidth = dynamicWidth and true or false
+    end
+
+    local dynamicHeight = opts.DynamicHeight
+    if dynamicHeight == nil then dynamicHeight = opts.dynamicHeight end
+    if dynamicHeight == nil then dynamicHeight = dynamic end
+    dynamicHeight = dynamicHeight and true or false
+
     local explicitW = tonumber(opts.Width or opts.width or opts.W or opts.w)
     local explicitH = tonumber(opts.Height or opts.height or opts.H or opts.h)
 
@@ -5977,10 +6057,13 @@ function HUDBox.new(opts)
         X           = tonumber(opts.X or opts.x) or 40,
         Y           = tonumber(opts.Y or opts.y) or 40,
         W           = math.max(100, explicitW or 200),
+        BaseW       = math.max(100, explicitW or 200),
         H           = explicitH,
         Lines       = {},
         Visible     = visible and true or false,
         Dynamic     = dynamic,
+        DynamicWidth  = dynamicWidth,
+        DynamicHeight = dynamicHeight,
         MaxLines    = Clamp(math.floor(tonumber(opts.MaxLines or opts.maxLines) or 100), 1, 100),
         MaxChars    = Clamp(math.floor(tonumber(opts.MaxWidth or opts.maxWidth or opts.MaxChars or opts.maxChars) or 50), 8, 50),
         Font        = Fonts.ResolveOverlay(opts.Font or opts.font, Fonts.SystemBold),
@@ -6035,14 +6118,36 @@ function HUDBox:SetTitle(title)
 end
 
 function HUDBox:SetSize(width, height)
-    if width ~= nil then self.W = math.max(100, tonumber(width) or self.W) end
+    if width ~= nil then
+        self.W = math.max(100, tonumber(width) or self.W)
+        self.BaseW = self.W
+    end
     if height ~= nil then self.H = math.max(48, tonumber(height) or (self.H or 48)) end
     self._layoutDirty = true
     return self
 end
 
 function HUDBox:SetDynamic(value)
-    self.Dynamic = value and true or false
+    local enabled = value and true or false
+    self.Dynamic = enabled
+    self.DynamicWidth = enabled
+    self.DynamicHeight = enabled
+    self._layoutDirty = true
+    return self
+end
+
+function HUDBox:SetDynamicWidth(value)
+    if type(value) == "string" and string.lower(value) == "expand" then
+        self.DynamicWidth = "expand"
+    else
+        self.DynamicWidth = value and true or false
+    end
+    self._layoutDirty = true
+    return self
+end
+
+function HUDBox:SetDynamicHeight(value)
+    self.DynamicHeight = value and true or false
     self._layoutDirty = true
     return self
 end
@@ -6190,17 +6295,24 @@ local function DrawHUDBoxes()
                                            box.Font or Fonts.SystemBold) + padX * 2
                 local naturalW = math.max(headerW + 20, widestLine + padX * 2)
                 local dynamicW = Clamp(naturalW, 100, math.max(100, charCapW))
-                local measuredW = box.Dynamic and dynamicW or box.W
+                local measuredW
+                if box.DynamicWidth == "expand" then
+                    measuredW = math.max(box.BaseW or box.W, dynamicW)
+                elseif box.DynamicWidth then
+                    measuredW = dynamicW
+                else
+                    measuredW = box.W
+                end
                 local lineH = math.max(box.MinLineHeight or 25, tallestLine + (box.LineSpacing or 12))
-                local naturalH = headerH + math.max(1, visibleCount) * lineH + 8
-                local measuredH = box.Dynamic and naturalH
-                    or (box.H and math.max(headerH + 8, box.H) or naturalH)
+                local naturalH = headerH + contentPadY + math.max(1, visibleCount) * lineH + contentPadY
+                local measuredH = box.DynamicHeight and naturalH
+                    or (box.H and math.max(headerH + contentPadY * 2, box.H) or naturalH)
 
                 box._layoutW = measuredW
                 box._layoutH = measuredH
                 box._lineH = lineH
                 box._layoutDirty = false
-                if box.Dynamic then box.W = measuredW end
+                if box.DynamicWidth == true then box.W = measuredW end
             end
 
             local boxW = box._layoutW or box.W
@@ -6847,6 +6959,42 @@ local function EnsureGlobalSettingsTab(library)
         IsSettings = true,
     })
 
+    local behavior = Section.new(tab, "Behavior", "Window and navigation preferences", {})
+    Controls.Keybind(behavior, {
+        Title = "Menu key",
+        Description = "Overrides the menu key configured by the script.",
+        Default = State.MenuKey,
+        ConfigKey = "settings.menuKey",
+        Callback = function(value)
+            value = string.lower(tostring(value or ""))
+            if value ~= "" and value ~= "none" then
+                State.MenuKey = value
+                Keys.Track(State.MenuKey)
+            end
+        end,
+    })
+    Controls.Toggle(behavior, {
+        Title = "Keep sidebar open",
+        Description = "Pins the sidebar in its expanded state.",
+        Default = State.RailPinned,
+        Callback = function(v) State.RailPinned = v end,
+    })
+    Controls.Button(behavior, {
+        Title = "Reset overlay position",
+        Callback = function()
+            KeybindHUD.X = nil
+            KeybindHUD.Y = 18
+        end,
+    })
+    Controls.Button(behavior, {
+        Title = "Reset window position",
+        Callback = function()
+            local vp = Camera.ViewportSize
+            State.X = math.floor((vp.X - State.W) / 2)
+            State.Y = math.floor((vp.Y - State.H) / 2)
+        end,
+    })
+
     local appearance = Section.new(tab, "Appearance", "Global interface appearance", {})
     Controls.Dropdown(appearance, {
         Title = "Theme",
@@ -6859,6 +7007,16 @@ local function EnsureGlobalSettingsTab(library)
         Options = {"none", "dots", "particles", "aurora", "snow", "rainfall"},
         Default = type(State.Background) == "table" and (State.Background.Type or "none") or State.Background,
         Callback = function(value) State.Background = NormalizeBackground(value) end,
+    })
+    Controls.Slider(appearance, {
+        Title = "Window opacity",
+        Description = "Controls how transparent or solid the main glass window is.",
+        Min = 35, Max = 100, Default = State.Settings.WindowOpacity, Step = 1,
+        Suffix = "%",
+        Callback = function(v)
+            State.Settings.WindowOpacity = v
+            GlassSurfaceAlpha = math.max(0.20, math.min(1, v / 100))
+        end,
     })
     Controls.Toggle(appearance, {
         Title = "Background effects",
@@ -6886,42 +7044,6 @@ local function EnsureGlobalSettingsTab(library)
         Callback = function(v) State.Settings.ToggleStyle = v end,
     })
 
-
-    local hud = Section.new(tab, "Interface", "Global overlays and feedback", {})
-    Controls.Slider(hud, {
-        Title = "Window opacity",
-        Description = "Controls how transparent or solid the main glass window is.",
-        Min = 35, Max = 100, Default = State.Settings.WindowOpacity, Step = 1,
-        Suffix = "%",
-        Callback = function(v)
-            State.Settings.WindowOpacity = v
-            GlassSurfaceAlpha = math.max(0.20, math.min(1, v / 100))
-        end,
-    })
-
-
-    local behavior = Section.new(tab, "Behavior", "Window and navigation preferences", {})
-    Controls.Toggle(behavior, {
-        Title = "Keep sidebar open",
-        Description = "Pins the sidebar in its expanded state.",
-        Default = State.RailPinned,
-        Callback = function(v) State.RailPinned = v end,
-    })
-    Controls.Button(behavior, {
-        Title = "Reset overlay position",
-        Callback = function()
-            KeybindHUD.X = nil
-            KeybindHUD.Y = 18
-        end,
-    })
-    Controls.Button(behavior, {
-        Title = "Reset window position",
-        Callback = function()
-            local vp = Camera.ViewportSize
-            State.X = math.floor((vp.X - State.W) / 2)
-            State.Y = math.floor((vp.Y - State.H) / 2)
-        end,
-    })
 
     local configs = Section.new(tab, "Configs", "Save and manage interface configurations.", {})
 
@@ -7052,6 +7174,11 @@ local Library = {}
 
 function Library:CreateWindow(opts)
     opts = opts or {}
+
+    local requestedOpacity = tonumber(opts.Opacity or opts.opacity)
+    if requestedOpacity ~= nil then
+        State.Settings.WindowOpacity = math.max(35, math.min(100, requestedOpacity))
+    end
     GlassSurfaceAlpha = math.max(0.20, math.min(1, (State.Settings.WindowOpacity or 82) / 100))
 
     local size = opts.Size or opts.size
@@ -7067,6 +7194,67 @@ function Library:CreateWindow(opts)
 
     State.WindowTitle = tostring(opts.Title or opts.title or opts.Name or opts.name or State.WindowTitle or "Window")
     State.WindowSubtitle = tostring(opts.Subtitle or opts.subtitle or "")
+
+    State.ProfileDisplayName = tostring(LocalPlayer.DisplayName or LocalPlayer.Name or "Player")
+    State.ProfileUsername = tostring(LocalPlayer.Name or "Player")
+    if State.ProfileAvatar == nil and not State.ProfileAvatarLoading then
+        State.ProfileAvatarLoading = true
+        task.spawn(function()
+            local userId = tonumber(LocalPlayer.UserId)
+            local loaded = false
+
+            if userId and userId > 0 then
+                local endpoints = {
+                    "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=%d&size=150x150&format=Png&isCircular=false",
+                    "https://thumbnails.roproxy.com/v1/users/avatar-headshot?userIds=%d&size=150x150&format=Png&isCircular=false",
+                    "https://thumbnails.roblox.com/v1/users/avatar-bust?userIds=%d&size=150x150&format=Png&isCircular=false",
+                }
+
+                for _, pattern in ipairs(endpoints) do
+                    if loaded then break end
+
+                    local ok, body = pcall(function()
+                        local url = string.format(pattern, userId)
+                        if type(httpget) == "function" then return httpget(url) end
+                        if game and game.HttpGet then return game:HttpGet(url) end
+                        return nil
+                    end)
+
+                    if ok and type(body) == "string" then
+                        local imageUrl = string.match(body, '"imageUrl"%s*:%s*"([^"]+)"')
+                        if imageUrl then
+                            imageUrl = string.gsub(imageUrl, "\\/", "/")
+                            local holder = LoadPicture(imageUrl, "profile_avatar_" .. tostring(userId))
+                            if holder then
+                                State.ProfileAvatarSource = imageUrl
+                                State.ProfileAvatar = holder
+                                loaded = true
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if not loaded then
+                local ok, thumbnail = pcall(function()
+                    return Players:GetUserThumbnailAsync(
+                        LocalPlayer.UserId,
+                        Enum.ThumbnailType.HeadShot,
+                        Enum.ThumbnailSize.Size150x150
+                    )
+                end)
+                if ok and type(thumbnail) == "string" and thumbnail ~= "" then
+                    local holder = LoadPicture(thumbnail, "profile_avatar_" .. tostring(LocalPlayer.UserId))
+                    if holder then
+                        State.ProfileAvatarSource = thumbnail
+                        State.ProfileAvatar = holder
+                    end
+                end
+            end
+
+            State.ProfileAvatarLoading = false
+        end)
+    end
 
     State.ShowGameName = (opts.ShowGameName ~= false and opts.showGameName ~= false)
     State.ShowLogo = (opts.ShowLogo ~= false and opts.showLogo ~= false)
@@ -7313,6 +7501,7 @@ function Library:SaveConfig(name)
         if ctrl.Kind ~= "Toggle" and ctrl.Kind ~= "Slider"
            and ctrl.Kind ~= "RangeSlider" and ctrl.Kind ~= "Dropdown"
            and ctrl.Kind ~= "Radio" and ctrl.Kind ~= "Segmented"
+           and ctrl.Kind ~= "Keybind"
            and ctrl.Kind ~= "ColorPicker" then return end
         local key = ctrl.ConfigKey or path
         local ok, a, b = pcall(function() return ctrl:GetValue() end)

@@ -93,9 +93,15 @@ local Window = Nexa:CreateWindow({
     GameName = "Component Gallery",
     Width = 860,
     Height = 610,
-    Theme = "Midnight",
+    Theme = "Obsidian",
     Background = "particles",
+	Opacity = 100,
     MenuKey = "p",
+    Logo = "https://i.ibb.co/pvWzYPYT/IMG-3374.png",
+    BackgroundImage = "https://i.ibb.co/pvWzYPYT/IMG-3374.png",
+    Splash = {
+        Image = "https://i.ibb.co/pvWzYPYT/IMG-3374.png",
+    },
     ShowLogo = true,
     ShowGameName = true,
     IslandExpanded = true,
@@ -344,7 +350,7 @@ local themeNames = { "Midnight", "Obsidian", "Burgundy", "Cyber", "Bubblegum", "
 themes:AddDropdown({
     Title = "Theme",
     Options = themeNames,
-    Default = "Midnight",
+    Default = "Obsidian",
     VisibleRows = 6,
     Callback = function(v) Nexa:SetTheme(v) end,
 })

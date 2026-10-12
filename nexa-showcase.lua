@@ -1,4 +1,4 @@
-local NEXA_SOURCE = "https://raw.githubusercontent.com/OgTen/Nexa-UI/refs/heads/main/nexa-ui.lua"
+local NEXA_SOURCE = "https://raw.githubusercontent.com/OgTen/Nexa-UI/main/nexa-ui.lua"
 
 local function isNexaLibrary(value)
     return type(value) == "table"
@@ -90,21 +90,12 @@ local C = Color3.fromRGB
 local Window = Nexa:CreateWindow({
     Title = "Nexa",
     Subtitle = "Complete UI Library Showcase",
-    GameName = "Component Gallery",
     Width = 860,
     Height = 610,
-    Theme = "Obsidian",
-    Background = "particles",
-	Opacity = 100,
-    MenuKey = "p",
-    Logo = "https://i.ibb.co/pvWzYPYT/IMG-3374.png",
-    BackgroundImage = "https://i.ibb.co/pvWzYPYT/IMG-3374.png",
-    Splash = {
-        Image = "https://i.ibb.co/pvWzYPYT/IMG-3374.png",
-    },
-    ShowLogo = true,
-    ShowGameName = true,
-    IslandExpanded = true,
+    Theme = "Midnight",
+    Background = "none",
+    MenuKey = "RightShift",
+    Opacity = 100,
 })
 
 local overview = Nexa:AddTab({ Title = "Overview", Icon = "home", Select = true })
@@ -345,12 +336,12 @@ apiStates:AddButton({
 
 local appearance = Nexa:AddTab({ Title = "Appearance", Icon = "sparkles" })
 
-local themes = appearance:AddSection("Themes", "All the built-in themes.", { Column = "left" })
+local themes = appearance:AddSection("Themes", "Available built-in theme palettes.", { Column = "left" })
 local themeNames = { "Midnight", "Obsidian", "Burgundy", "Cyber", "Bubblegum", "Emerald", "Crimson", "Arctic", "Sunset", "Royal" }
 themes:AddDropdown({
     Title = "Theme",
     Options = themeNames,
-    Default = "Obsidian",
+    Default = "Midnight",
     VisibleRows = 6,
     Callback = function(v) Nexa:SetTheme(v) end,
 })
@@ -476,46 +467,8 @@ overlayInfo:AddButton({
     Callback = function() demoOverlay:SetSize(275, 180) end,
 })
 
-local island = Nexa:AddTab({ Title = "Island", Icon = "zap" })
-local islandState = { star = false, eye = false }
-
-Nexa:AddIslandAction({
-    Id = "showcase_star",
-    Icon = "star",
-    Side = "left",
-    GetActive = function() return islandState.star end,
-    Callback = function()
-        islandState.star = not islandState.star
-        Nexa:Notify({ Title = "Island", Content = "Star action toggled.", Type = "info", Duration = 2 })
-    end,
-})
-Nexa:AddIslandAction({
-    Id = "showcase_eye",
-    Icon = "eye",
-    Side = "right",
-    GetActive = function() return islandState.eye end,
-    Callback = function() islandState.eye = not islandState.eye end,
-})
-
-local islandControls = island:AddSection("Dynamic island", "Actions can live on either side of the fixed title.", { Column = "left" })
-islandControls:AddButton({ Title = "Open", ButtonText = "Open island", Callback = function() Nexa:SetIslandOpen(true) end })
-islandControls:AddButton({ Title = "Close", ButtonText = "Close island", Callback = function() Nexa:SetIslandOpen(false) end })
-islandControls:AddButton({ Title = "Toggle", ButtonText = "Toggle island", Callback = function() Nexa:ToggleIsland() end })
-islandControls:AddButton({
-    Title = "Remove eye action",
-    ButtonText = "Remove",
-    Variant = "danger",
-    Callback = function() Nexa:RemoveIslandAction("showcase_eye") end,
-})
-islandControls:AddButton({
-    Title = "Clear actions",
-    ButtonText = "Clear all",
-    Variant = "danger",
-    Callback = function() Nexa:ClearIslandActions() end,
-})
-
 local icons = Nexa:AddTab({ Title = "Icons", Icon = "star" })
-local iconSection = icons:AddSection("Built-in icon names", "The image-mask icon renderer used by tabs and island actions.", { Column = "left" })
+local iconSection = icons:AddSection("Built-in icon names", "The icon renderer used by the sidebar tabs.", { Column = "left" })
 iconSection:AddLabel({
     Title = "Navigation",
     Description = "home, menu, arrows, chevrons, window, folder, file",
@@ -550,7 +503,7 @@ configDemo:AddDropdown({
     ConfigKey = "showcase.config.dropdown",
 })
 
-local configActions = config:AddSection("Config methods", "The built-in Settings page provides the normal UI for these.", { Column = "right" })
+local configActions = config:AddSection("Config methods", "The built-in Settings tab also provides these controls.", { Column = "right" })
 configActions:AddButton({
     Title = "Save showcase",
     ButtonText = "Save",
@@ -582,10 +535,10 @@ configActions:AddButton({ Title = "Reset defaults", ButtonText = "Reset", Callba
 local windowApi = Nexa:AddTab({ Title = "Window API", Icon = "window" })
 local visibility = windowApi:AddSection("Visibility", "Public window lifecycle helpers.", { Column = "left" })
 visibility:AddButton({ Title = "Hide UI", ButtonText = "Hide", Callback = function() Nexa:Hide() end })
-visibility:AddLabel({ Title = "Show UI", Description = "Use the configured menu key (Right Shift here) after hiding." })
+visibility:AddLabel({ Title = "Show UI", Description = "Use the configured menu key (Right Shift) after hiding." })
 visibility:AddButton({ Title = "Toggle UI", ButtonText = "Toggle", Callback = function() Nexa:Toggle() end })
 
-local utility = windowApi:AddSection("Utility windows", "Built-in auxiliary panels.", { Column = "right" })
+local utility = windowApi:AddSection("Overlay visibility", "The same overlays can also be toggled in Settings > Behavior.", { Column = "right" })
 utility:AddButton({ Title = "Open keybinds", ButtonText = "Open", Callback = function() Nexa:OpenKeybinds() end })
 utility:AddButton({ Title = "Close keybinds", ButtonText = "Close", Callback = function() Nexa:CloseKeybinds() end })
 utility:AddButton({ Title = "Open performance", ButtonText = "Open", Callback = function() Nexa:OpenPerformance() end })
@@ -606,7 +559,7 @@ end)
 
 Nexa:Notify({
     Title = "Nexa Showcase",
-    Content = "Complete component showcase loaded. Use the tabs to explore the library.",
+    Content = "Explore the updated Nexa controls, overlays, and settings.",
     Type = "success",
     Duration = 5,
 })

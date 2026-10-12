@@ -6,7 +6,6 @@ local Camera        = workspace.CurrentCamera
 
 local Fonts         = Drawing.Fonts
 
-
 local FontMetrics = {
     [Fonts.System] = 0.48,
     [Fonts.SystemBold]   = 0.52,
@@ -172,15 +171,14 @@ local Layout = {
     WindowMinW      = 500,
     WindowMinH      = 340,
     Corner          = 12,
-    TopbarH         = 44,
+    TopbarH         = 0,
     TabRailW        = 172,
     TabRailMinW     = 94,
     TabRailNarrow   = 94,
 
-
-    TabRowH         = 34,
+    TabRowH         = 39,
     TabGap          = 7,
-    TabIcon         = 16,
+    TabIcon         = 20,
     SectionH        = 22,
     SectionGap      = 12,
     SectionColumnGap = 12,
@@ -191,16 +189,13 @@ local Layout = {
     SectionTitleH   = 18,
     SectionDescH    = 16,
 
-
     ContentPadX     = 18,
     ContentPadY     = 14,
     ContentGapY     = 10,
 
-
     RowHeight       = 28,
     RowColumnGap    = 8,
     RowGapY         = 7,
-
 
     ToggleW         = 38,
     ToggleH         = 20,
@@ -214,21 +209,17 @@ local Layout = {
     DropdownH       = 28,
     DividerH        = 1,
 
-
     TitleSize       = 14,
     TextSize        = 13,
     SmallSize       = 12,
     TinySize        = 11,
 
-
     ScrollSpeed     = 30,
     ScrollbarW      = 4,
-
 
     AnimFast        = 18,
     AnimMed         = 12,
     AnimSlow        = 8,
-
 
     ResizeGrab      = 12,
 }
@@ -425,7 +416,6 @@ local function GlassSurface(x, y, w, h, color, z, corner)
             l.ColorWritable = true
         else
 
-
             l.ColorWritable = false
         end
     end
@@ -451,14 +441,12 @@ local function SolidSurface(x, y, w, h, color, z, corner)
             l.ColorWritable = true
         else
 
-
             l.ColorWritable = false
         end
     end
     if not l.Filled then l.Filled = true; o.Filled = true end
     if l.Corner ~= corner then l.Corner = corner; o.Corner = corner end
     if l.Depth ~= depth then l.Depth = depth; o.ZIndex = depth end
-
 
     local a = FrameAlpha
     if l.Alpha ~= a then l.Alpha = a; o.Transparency = a end
@@ -480,7 +468,6 @@ local function FrostedSurface(x, y, w, h, color, z, corner)
             l.ColorWritable = true
         else
 
-
             l.ColorWritable = false
         end
     end
@@ -492,7 +479,20 @@ local function FrostedSurface(x, y, w, h, color, z, corner)
     if l.Alpha ~= a then l.Alpha = a; o.Transparency = a end
 end
 
+local ActiveClipTop, ActiveClipBottom
+local function ClipVertical(y, h)
+    if not ActiveClipTop then return y, h end
+    local top, bottom = math.max(y, ActiveClipTop), math.min(y + h, ActiveClipBottom)
+    return top, math.max(0, bottom - top)
+end
+
 local function Rect(x, y, w, h, color, z, corner, alpha)
+    if ActiveClipTop and z >= 40 and z < 59 then
+        local cy, ch = ClipVertical(y, h)
+        if ch <= 0 then DrawOrder = DrawOrder + 1; return end
+        y, h = cy, ch
+        if cy ~= y or ch ~= h then corner = 0 end
+    end
     if w <= 0 or h <= 0 then DrawOrder = DrawOrder + 1; return end
     local o, l = Take("Square")
     local depth = Layer(z)
@@ -505,7 +505,6 @@ local function Rect(x, y, w, h, color, z, corner, alpha)
             l.Color = color
             l.ColorWritable = true
         else
-
 
             l.ColorWritable = false
         end
@@ -519,6 +518,22 @@ local function Rect(x, y, w, h, color, z, corner, alpha)
 end
 
 local function Stroke(x, y, w, h, color, z, corner, alpha)
+    if ActiveClipTop and z >= 40 and z < 59 then
+        if y + h <= ActiveClipTop or y >= ActiveClipBottom then DrawOrder = DrawOrder + 1; return end
+        if y < ActiveClipTop or y + h > ActiveClipBottom then
+            local o, l = Take("Square")
+            local depth = Layer(z)
+            if l.X ~= x or l.Y ~= y then l.X, l.Y = x, y; o.Position = Vector2.new(x, y) end
+            if l.W ~= w or l.H ~= h then l.W, l.H = w, h; o.Size = Vector2.new(w, h) end
+            if l.Filled ~= false then l.Filled = false; o.Filled = false end
+            if l.Color ~= color then l.Color = color; o.Color = color end
+            if l.Corner ~= corner then l.Corner = corner; o.Corner = corner end
+            if l.Depth ~= depth then l.Depth = depth; o.ZIndex = depth end
+            local a = 0
+            if l.Alpha ~= a then l.Alpha = a; o.Transparency = a end
+            return
+        end
+    end
     if w <= 0 or h <= 0 then DrawOrder = DrawOrder + 1; return end
     local o, l = Take("Square")
     local depth = Layer(z)
@@ -532,7 +547,6 @@ local function Stroke(x, y, w, h, color, z, corner, alpha)
             l.ColorWritable = true
         else
 
-
             l.ColorWritable = false
         end
     end
@@ -545,6 +559,19 @@ local function Stroke(x, y, w, h, color, z, corner, alpha)
 end
 
 local function Line(x1, y1, x2, y2, color, z, thickness, alpha)
+    if ActiveClipTop and z >= 40 and z < 59 then
+        local lo, hi = ActiveClipTop, ActiveClipBottom
+        local dy = y2 - y1
+        if dy == 0 then
+            if y1 < lo or y1 > hi then DrawOrder = DrawOrder + 1; return end
+        else
+            local t0, t1 = math.max(0, math.min((lo-y1)/dy, (hi-y1)/dy)), math.min(1, math.max((lo-y1)/dy, (hi-y1)/dy))
+            if t0 > t1 then DrawOrder = DrawOrder + 1; return end
+            local ax, ay = x1, y1
+            local dx = x2 - x1
+            x1, y1, x2, y2 = ax + dx*t0, ay + dy*t0, ax + dx*t1, ay + dy*t1
+        end
+    end
     local o, l = Take("Line")
     local depth = Layer(z)
 
@@ -558,7 +585,66 @@ local function Line(x1, y1, x2, y2, color, z, thickness, alpha)
     if l.Alpha ~= a then l.Alpha = a; o.Transparency = a end
 end
 
+local function TriangleClipEmit(a, b, c, color, z, alpha)
+    local o, l = Take("Triangle")
+    o.PointA, o.PointB, o.PointC = Vector2.new(a[1], a[2]), Vector2.new(b[1], b[2]), Vector2.new(c[1], c[2])
+    l.AX, l.AY, l.BX, l.BY, l.CX, l.CY = a[1], a[2], b[1], b[2], c[1], c[2]
+    if l.Color ~= color then l.Color = color; o.Color = color end
+    if not l.Filled then l.Filled = true; o.Filled = true end
+    local depth = Layer(z)
+    if l.Depth ~= depth then l.Depth = depth; o.ZIndex = depth end
+    local opacity = (alpha or 1) * FrameAlpha
+    if l.Alpha ~= opacity then l.Alpha = opacity; o.Transparency = opacity end
+end
+
 local function Circle(x, y, radius, color, z, filled, thickness, sides, alpha)
+    if ActiveClipTop and z >= 40 and z < 59 then
+
+        local fadeDistance = math.max(radius * 2, 10)
+        local fade = math.max(0, math.min(1,
+            (y - ActiveClipTop) / fadeDistance,
+            (ActiveClipBottom - y) / fadeDistance))
+        alpha = (alpha or 1) * fade
+        if fade <= 0.001 then DrawOrder = DrawOrder + 1; return end
+        if y + radius <= ActiveClipTop or y - radius >= ActiveClipBottom then DrawOrder = DrawOrder + 1; return end
+        if y - radius < ActiveClipTop or y + radius > ActiveClipBottom then
+            if filled then
+                local segments = math.max(32, sides or 24)
+                local start = DrawOrder
+                for i = 0, segments - 1 do
+                    local a1, a2 = 2 * math.pi * i / segments, 2 * math.pi * (i + 1) / segments
+                    local p = {{x, y}, {x + math.cos(a1)*radius, y + math.sin(a1)*radius}, {x + math.cos(a2)*radius, y + math.sin(a2)*radius}}
+                    for _, edge in ipairs({{ActiveClipTop, true}, {ActiveClipBottom, false}}) do
+                        local result = {}
+                        for j = 1, #p do
+                            local u, v = p[j], p[j % #p + 1]
+                            local ui = edge[2] and u[2] >= edge[1] or u[2] <= edge[1]
+                            local vi = edge[2] and v[2] >= edge[1] or v[2] <= edge[1]
+                            if ui then result[#result+1] = u end
+                            if ui ~= vi then
+                                local t = (edge[1]-u[2])/(v[2]-u[2])
+                                result[#result+1] = {u[1]+t*(v[1]-u[1]), edge[1]}
+                            end
+                        end
+                        p = result
+                    end
+                    if #p >= 3 then
+                        for j = 2, #p-1 do TriangleClipEmit(p[1], p[j], p[j+1], color, z, alpha) end
+                    end
+                end
+                return
+            end
+
+            local segments = math.max(40, sides or 24)
+            for i = 0, segments - 1 do
+                local a1, a2 = 2 * math.pi * i / segments, 2 * math.pi * (i + 1) / segments
+                Line(x + math.cos(a1) * radius, y + math.sin(a1) * radius,
+                     x + math.cos(a2) * radius, y + math.sin(a2) * radius,
+                     color, z, thickness or 1, alpha)
+            end
+            return
+        end
+    end
     local o, l = Take("Circle")
     local depth = Layer(z)
 
@@ -575,6 +661,27 @@ local function Circle(x, y, radius, color, z, filled, thickness, sides, alpha)
 end
 
 local function Triangle(ax, ay, bx, by, cx, cy, color, z, alpha)
+    if ActiveClipTop and z >= 40 and z < 59 then
+        local poly = {{ax, ay}, {bx, by}, {cx, cy}}
+        for _, edge in ipairs({{ActiveClipTop, true}, {ActiveClipBottom, false}}) do
+            local result = {}
+            for j = 1, #poly do
+                local u, v = poly[j], poly[j % #poly + 1]
+                local ui = edge[2] and u[2] >= edge[1] or u[2] <= edge[1]
+                local vi = edge[2] and v[2] >= edge[1] or v[2] <= edge[1]
+                if ui then result[#result+1] = u end
+                if ui ~= vi then
+                    local t = (edge[1]-u[2])/(v[2]-u[2])
+                    result[#result+1] = {u[1]+t*(v[1]-u[1]), edge[1]}
+                end
+            end
+            poly = result
+            if #poly == 0 then break end
+        end
+        if #poly < 3 then DrawOrder = DrawOrder + 1; return end
+        for j = 2, #poly-1 do TriangleClipEmit(poly[1], poly[j], poly[j+1], color, z, alpha) end
+        return
+    end
     local o, l = Take("Triangle")
     local depth = Layer(z)
 
@@ -614,6 +721,9 @@ local function TextMidY(y, h, size)
 end
 
 local function Text(text, x, y, color, size, font, z, alpha, room, center)
+    if ActiveClipTop and z >= 40 and z < 59 and (y < ActiveClipTop or y + size > ActiveClipBottom) then
+        DrawOrder = DrawOrder + 1; return
+    end
     if room then text = TrimText(text, room, size, font) end
     if text == "" then DrawOrder = DrawOrder + 1; return end
 
@@ -639,7 +749,6 @@ local function TextCenter(text, cx, y, color, size, font, z, alpha, room)
     if text == "" then return end
     Text(text, cx, y, color, size, font, z, alpha, nil, true)
 end
-
 
 local function GradientRect(x, y, w, h, first, second, z, alpha, steps)
     steps = steps or 18
@@ -953,13 +1062,11 @@ local function AddKey(name, code, char, shifted)
     KeyList[#KeyList + 1] = entry
 end
 
-
 AddKey("MB1", 0x01)
 AddKey("MB2", 0x02)
 AddKey("MB3", 0x04)
 AddKey("MB4", 0x05)
 AddKey("MB5", 0x06)
-
 
 AddKey("Backspace",  0x08)
 AddKey("Tab",        0x09)
@@ -1014,24 +1121,20 @@ AddKey("NumSubtract", 0x6D, "-")
 AddKey("NumDecimal",  0x6E, ".")
 AddKey("NumDivide",   0x6F, "/")
 
-
 for i = 0, 25 do
     local lower = string.char(97 + i)
     local upper = string.upper(lower)
     AddKey(upper, 0x41 + i, lower, upper)
 end
 
-
 local shiftedNums = { ")", "!", "@", "#", "$", "%", "^", "&", "*", "(" }
 for i = 0, 9 do
     AddKey("N" .. i, 0x30 + i, tostring(i), shiftedNums[i + 1])
 end
 
-
 for i = 1, 24 do
     AddKey("F" .. i, 0x6F + i)
 end
-
 
 AddKey("Minus",    0xBD, "-", "_")
 AddKey("Equals",   0xBB, "=", "+")
@@ -1076,7 +1179,6 @@ function Keys.Track(name)
 end
 
 local function ReadKeys(runtimeState, focusState, captureState)
-
 
     if (focusState and focusState.Field ~= nil) or runtimeState.Focus ~= nil or (captureState and captureState.Active ~= nil) then
         for i = 1, #KeyList do
@@ -1196,7 +1298,6 @@ local function ProcessText(row, allowed, onCommit)
         row.Anchor = nil
     end
 
-
     if CtrlHeld() then
         if Keys.A.Click then row.Anchor, row.Caret = 0, #value; Keys.A.Click = false end
         if Keys.C.Click and selected then
@@ -1229,7 +1330,6 @@ local function ProcessText(row, allowed, onCommit)
         end
     end
 
-
     local step = Keys.Left.Click and -1 or (Keys.Right.Click and 1) or nil
     local jump = Keys.Home.Click and 0 or (Keys.End.Click and #value) or nil
 
@@ -1251,12 +1351,10 @@ local function ProcessText(row, allowed, onCommit)
         Keys.End.Click   = false
     end
 
-
     if Keys.Enter.Click or Keys.Escape.Click then
         if onCommit then onCommit(value) end
         return "done"
     end
-
 
     if RepeatHeld(Keys.Backspace) then
         if selected then
@@ -1275,7 +1373,6 @@ local function ProcessText(row, allowed, onCommit)
         end
         return "edit"
     end
-
 
     local c = TypedChar()
     if not c then return nil end
@@ -1301,7 +1398,6 @@ end
 
 local function UpdateCapture()
     if not Capture.Active then return end
-
 
     if Keys.Escape.Click then
         Capture.Active = nil
@@ -1353,32 +1449,18 @@ local State = {
     Visible = 0,
     Open = false,
 
-
     Drag        = nil,
     Resize      = nil,
     DragSpeed   = 20,
 
-
     Tabs        = {},
     ActiveIndex = 1,
-    RailOpen    = 0,
-    RailPinned  = false,
-
-
-    Island = {
-        Open = false,
-        Expand = 0,
-        IconReveal = 0,
-        Actions = {},
-        MaxActions = 6,
-    },
-
+    RailOpen    = 1,
+    RailPinned  = true,
 
     Scroll      = {},
 
-
     Popup       = nil,
-
 
     Alive       = true,
     Frame       = 0,
@@ -1388,39 +1470,7 @@ local State = {
     Delta       = 1 / 60,
     LastTick    = os.clock(),
 
-
-    Startup = {
-        Active = false,
-        Phase = "idle",
-        Time = 0,
-        Duration = 7.0,
-        Progress = 0,
-        RevealProgress = 0,
-        RevealDuration = 0.85,
-        ShrinkDuration = 0.42,
-        PopDuration = 0.72,
-        Enabled = true,
-        TextFade = true,
-        Image = nil,
-        ImageSource = nil,
-        Title = nil,
-        LogoSize = 50,
-        ShowLogo = true,
-        ShowGameName = true,
-        Border = true,
-        AccentBar = true,
-        FooterAccent = true,
-        CornerRadius = 14,
-        BackgroundImage = nil,
-        BackgroundImageSource = nil,
-        BackgroundOpacity = 0.22,
-        TypewriterCount = 0,
-        TypewriterAccumulator = 0,
-        TypewriterLastTime = 0,
-        StartX = 0, StartY = 0, StartW = 0, StartH = 0,
-        TargetX = 0, TargetY = 0, TargetW = 0, TargetH = 0,
-    },
-
+    Entrance = { Time = 0, Duration = 0.72, Active = false },
 
     NoAnim      = false,
     Settings = {
@@ -1434,10 +1484,8 @@ local State = {
         ConfigName = "default",
     },
 
-
     OverlayRevealTime = 0,
     OverlayNextRevealAt = 1.0,
-
 
     WindowTitle    = "Window",
     WindowSubtitle = "",
@@ -1461,14 +1509,11 @@ local State = {
     Background     = "none",
     BackgroundOptions = {},
 
-
     MenuKey     = "p",
-
 
     Theme       = Themes[1],
     ThemeIndex  = 1,
     ThemeTween  = {},
-
 
     Notifications = {},
     NotificationPosition = "top_left",
@@ -1477,8 +1522,7 @@ local State = {
 do
     local function GameCaptures()
 
-
-        if State.Startup.Active then return true end
+        if State.Entrance.Active then return true end
         if not State.Open then return false end
         if State.GameInput == "always" then return false end
         if State.GameInput ~= true then return true end
@@ -1499,7 +1543,6 @@ do
         setrobloxinput(ToGame)
     end
 end
-
 
 local function ApplyThemeOptions(themeOption)
     if type(themeOption) == "string" then
@@ -1561,27 +1604,22 @@ function Geometry.Recalculate()
     Geometry.W = State.W
     Geometry.H = State.H
 
-
     Geometry.TopY  = State.Y
     Geometry.TopH  = Layout.TopbarH
 
-
     Geometry.RailX = State.X
-    Geometry.RailY = State.Y + Geometry.TopH
+    Geometry.RailY = State.Y
 
-    Geometry.FooterH = 20
-    Geometry.RailH = math.max(1, State.H - Geometry.TopH - Geometry.FooterH)
+    Geometry.FooterH = 0
+    Geometry.RailH = State.H
 
     local wide = math.max(Layout.TabRailW, math.floor(State.W * 0.22))
-    local open = State.RailOpen
-    Geometry.RailW = Layout.TabRailNarrow + (wide - Layout.TabRailNarrow) * open
-
+    Geometry.RailW = wide
 
     Geometry.ContentX = Geometry.RailX + Geometry.RailW
-    Geometry.ContentY = Geometry.RailY
+    Geometry.ContentY = State.Y
     Geometry.ContentW = State.W - Geometry.RailW
-    Geometry.ContentH = Geometry.RailH
-
+    Geometry.ContentH = State.H
 
     Geometry.InnerX = Geometry.ContentX + Layout.ContentPadX
     Geometry.InnerY = Geometry.ContentY + Layout.ContentPadY
@@ -1601,20 +1639,16 @@ function Tab.new(parent, opts)
         Hidden   = opts.Hidden or false,
         IsSettings = opts.IsSettings or false,
 
-
         RowY     = 0,
         RowH     = Layout.TabRowH,
 
-
         Glow     = 0,
         Hover    = 0,
-
 
         Rows     = {},
         Scroll   = 0,
         ScrollTo = 0,
         MaxScroll = 0,
-
 
         Dirty    = true,
     }, Tab)
@@ -1625,7 +1659,6 @@ function Tab.new(parent, opts)
 
     return self
 end
-
 
 function Tab:AddRow(builder)
     self.Rows[#self.Rows + 1] = builder
@@ -1693,8 +1726,9 @@ local function GetContentScrollbarGeometry(tab)
     if not tab or (tab.MaxScroll or 0) <= 0 then return nil end
     local trackW = math.max(6, Layout.ScrollbarW)
     local trackX = Geometry.ContentX + Geometry.ContentW - trackW - 3
-    local trackY = Geometry.ContentY + 4
-    local trackH = math.max(20, Geometry.ContentH - 8)
+    local inset = 24
+    local trackY = Geometry.ContentY + inset
+    local trackH = math.max(20, Geometry.ContentH - inset * 2)
     local viewFrac = Geometry.InnerH / math.max(1, Geometry.InnerH + tab.MaxScroll)
     local thumbH = math.max(24, trackH * viewFrac)
     local travel = math.max(1, trackH - thumbH)
@@ -1740,7 +1774,6 @@ local function UpdateContentScrollbarInput(tab)
         Input.Click = false
         return
     end
-
 
     if Input.Click and MouseIn(trackX - 3, trackY, trackW + 6, trackH) then
         local centered = Clamp(Input.Y - thumbH / 2, trackY, trackY + travel)
@@ -1818,41 +1851,25 @@ local function GetVisibleTabCount()
     return count
 end
 
+local WrapHeaderLines
 local function GetRequiredWindowHeight()
-    local count = GetVisibleTabCount()
 
-    local defaultHeight = Layout.WindowH
-
-    if count <= 0 then
-        return math.max(Layout.WindowMinH, defaultHeight)
+    local count = 0
+    for _, tab in ipairs(State.Tabs) do
+        if not tab.Hidden and not tab.IsSettings then count = count + 1 end
     end
+    local railW = math.max(Layout.TabRailW, math.floor(State.W * 0.22))
+    local brandWidth = math.max(40, railW - 20) - 20
+    local titleLines = #WrapHeaderLines(State.WindowTitle or "Nexa", brandWidth, 20, Fonts.SystemBold)
+    local subtitleLines = State.WindowSubtitle ~= "" and #WrapHeaderLines(State.WindowSubtitle, brandWidth, 12, Fonts.System) or 0
+    local brandH = math.max(57, 18 + titleLines * 24 + (subtitleLines > 0 and (subtitleLines * 16 + 8) or 0) + 8)
+    local tabH = Layout.TabRowH * 0.96
+    local tabsHeight = count > 0 and (count * tabH + (count - 1) * Layout.TabGap) or 0
 
-    local sectionTopPad = 5
-    local tabTopPad = 11
-    local tabBottomPad = 10
-    local sectionBottomPad = 5
+    local needed = 8 + brandH + 7 + tabsHeight + 12 + Layout.TabRowH + 31
 
-    local collapsedScale = 1.18
-    local tabH = Layout.TabRowH * collapsedScale
-    local gap = Layout.TabGap
-
-    local tabsHeight =
-        (count * tabH)
-        + (math.max(0, count - 1) * gap)
-
-    local railHeight =
-        sectionTopPad
-        + tabTopPad
-        + tabsHeight
-        + tabBottomPad
-        + sectionBottomPad
-
-    local required =
-        Layout.TopbarH
-        + Geometry.FooterH
-        + railHeight
-
-    return math.max(Layout.WindowMinH, defaultHeight, math.ceil(required))
+    local viewportH = Camera and Camera.ViewportSize and Camera.ViewportSize.Y or 900
+    return math.min(math.max(Layout.WindowMinH, math.ceil(needed)), math.max(340, viewportH - 36))
 end
 
 local function EnsureWindowFitsTabs()
@@ -1861,9 +1878,11 @@ local function EnsureWindowFitsTabs()
         local oldH = State.H
         State.H = required
 
-
         State.Y = State.Y - math.floor((required - oldH) / 2)
     end
+    local vp = Camera.ViewportSize
+    State.X = math.max(0, math.min(State.X, math.max(0, vp.X - 80)))
+    State.Y = math.max(0, math.min(State.Y, math.max(0, vp.Y - 80)))
 end
 
 local function BeginResize()
@@ -1892,7 +1911,6 @@ local function TickResize()
     State.H = Clamp(r.StartH + (Input.Y - r.GrabY),
                     minWindowH, 1600)
 
-
     local vp = Camera.ViewportSize
     State.X = math.min(math.max(State.X, -State.W + 120), vp.X - 120)
     State.Y = math.min(math.max(State.Y, 0), vp.Y - 40)
@@ -1905,15 +1923,15 @@ local function DrawResizeHandle()
     local hovered = MouseIn(hx, hy, Layout.ResizeGrab, Layout.ResizeGrab)
     if not hovered and not State.Resize then return end
 
-    local a = hovered and 0.9 or 0.5
-    for i = 0, 2 do
-        local off = i * 3
+    local a = State.Resize and 1 or (hovered and 1 or 0.82)
+    for i = 0, 3 do
+        local off = i * 3.5
         Bar(
             hx + Layout.ResizeGrab - 2 - off,
             hy + Layout.ResizeGrab - 2,
             hx + Layout.ResizeGrab - 2,
             hy + Layout.ResizeGrab - 2 - off,
-            1.5, State.Theme.AccentDim, 200, a - i * 0.15
+            2, State.Theme.Accent, 200, a - i * 0.12
         )
     end
 
@@ -1943,7 +1961,6 @@ local function TickDrag(dt)
 
     State.X, State.Y = d.WantX, d.WantY
 
-
     if not Input.Down
        and math.abs(State.X - d.WantX) < 0.5
        and math.abs(State.Y - d.WantY) < 0.5 then
@@ -1956,56 +1973,48 @@ local function TickDrag(dt)
     State.Y = math.min(math.max(State.Y, 0), vp.Y - 40)
 end
 
-local function GlassBorderPoint(distance, x, y, w, h, radius)
-    local straightW = math.max(0, w - radius * 2)
-    local straightH = math.max(0, h - radius * 2)
-    local arc = math.pi * radius / 2
-
-    local top = straightW
-    local topRight = top + arc
-    local right = topRight + straightH
-    local bottomRight = right + arc
-    local bottom = bottomRight + straightW
-    local bottomLeft = bottom + arc
-    local left = bottomLeft + straightH
-    local total = left + arc
-
+local function GlassBorderPoint(distance, x, y, w, h, cut)
+    local points = {{x+cut,y},{x+w,y},{x+w,y+h-cut},{x+w-cut,y+h},{x,y+h},{x,y+cut},{x+cut,y}}
+    local total = 0
+    for i = 1, #points-1 do
+        local a,b = points[i],points[i+1]
+        total = total + math.sqrt((b[1]-a[1])^2+(b[2]-a[2])^2)
+    end
     local d = distance % total
+    for i = 1, #points-1 do
+        local a,b = points[i],points[i+1]
+        local len = math.sqrt((b[1]-a[1])^2+(b[2]-a[2])^2)
+        if d <= len then
+            local t = len > 0 and d/len or 0
+            return a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t
+        end
+        d = d-len
+    end
+    return x+cut,y
+end
 
-    if d <= top then
-        return x + radius + d, y
-    elseif d <= topRight then
-        local a = -math.pi / 2 + (d - top) / radius
-        return x + w - radius + math.cos(a) * radius,
-               y + radius + math.sin(a) * radius
-    elseif d <= right then
-        return x + w, y + radius + (d - topRight)
-    elseif d <= bottomRight then
-        local a = (d - right) / radius
-        return x + w - radius + math.cos(a) * radius,
-               y + h - radius + math.sin(a) * radius
-    elseif d <= bottom then
-        return x + w - radius - (d - bottomRight), y + h
-    elseif d <= bottomLeft then
-        local a = math.pi / 2 + (d - bottom) / radius
-        return x + radius + math.cos(a) * radius,
-               y + h - radius + math.sin(a) * radius
-    elseif d <= left then
-        return x, y + h - radius - (d - bottomLeft)
-    else
-        local a = math.pi + (d - left) / radius
-        return x + radius + math.cos(a) * radius,
-               y + radius + math.sin(a) * radius
+local function CutPanel(x,y,w,h,cut,color,z,alpha)
+    cut = math.min(cut, w*0.25, h*0.25)
+    Rect(x+cut,y,w-cut,cut,color,z,0,alpha)
+    Rect(x,y+cut,w,h-2*cut,color,z,0,alpha)
+    Rect(x,y+h-cut,w-cut,cut,color,z,0,alpha)
+    Triangle(x,y+cut,x+cut,y,x+cut,y+cut,color,z,alpha)
+    Triangle(x+w-cut,y+h-cut,x+w,y+h-cut,x+w-cut,y+h,color,z,alpha)
+end
+
+local function CutOutline(x,y,w,h,cut,color,z,alpha,thickness)
+    local pts={{x+cut,y},{x+w,y},{x+w,y+h-cut},{x+w-cut,y+h},{x,y+h},{x,y+cut},{x+cut,y}}
+    for i=1,#pts-1 do
+        Line(pts[i][1],pts[i][2],pts[i+1][1],pts[i+1][2],color,z,thickness or 1,alpha)
     end
 end
 
 local function DrawGlassBorder(th)
     local x, y = State.X, State.Y
     local w, h = State.W, State.H
-    local radius = math.min(Layout.Corner, math.max(2, math.min(w, h) / 2 - 1))
+    local radius = math.min(19, math.max(2, math.min(w, h) / 2 - 1))
 
-
-    Stroke(x, y, w, h, th.Accent, 20, radius, 0.88)
+    CutOutline(x, y, w, h, radius, th.Accent, 20, 0.88, 1.5)
 
     if State.NoAnim then
         return
@@ -2013,7 +2022,7 @@ local function DrawGlassBorder(th)
 
     local straightW = math.max(0, w - radius * 2)
     local straightH = math.max(0, h - radius * 2)
-    local perimeter = 2 * straightW + 2 * straightH + 2 * math.pi * radius
+    local perimeter = 2 * (w + h - 2 * radius) + 2 * math.sqrt(2) * radius
     local distance = (os.clock() * 96) % perimeter
 
     if State.Settings and State.Settings.BorderComet == false then
@@ -2056,7 +2065,7 @@ local function DrawBackgroundEffect()
     local x, y, w, h = State.X, State.Y, State.W, State.H
     local inset = 8
     local left, right = x + inset, x + w - inset
-    local top, bottom = y + Layout.TopbarH + 5, y + h - inset
+    local top, bottom = y + 5, y + h - inset
     local areaW = math.max(1, right - left)
     local areaH = math.max(1, bottom - top)
     local now = os.clock()
@@ -2081,7 +2090,6 @@ local function DrawBackgroundEffect()
 
     if kind == "dots" then
 
-
         local cols = Clamp(math.floor(areaW / 38), 8, 18)
         local rows = Clamp(math.floor(areaH / 38), 6, 13)
         for row = 1, rows do
@@ -2100,7 +2108,6 @@ local function DrawBackgroundEffect()
         end
 
     elseif kind == "particles" then
-
 
         local count = math.floor(type(effect) == "table" and tonumber(effect.Count) or 26)
         count = Clamp(count, 10, 48)
@@ -2125,7 +2132,6 @@ local function DrawBackgroundEffect()
         end
 
     elseif kind == "aurora" then
-
 
         local bands = type(effect) == "table" and math.floor(tonumber(effect.Bands) or 4) or 4
         bands = Clamp(bands, 3, 6)
@@ -2193,15 +2199,21 @@ end
 local function DrawFrame(hideBackgroundImage)
     local th = State.Theme
 
-    GlassSurface(State.X, State.Y, State.W, State.H,
-                 rgb(18, 21, 30), 10, Layout.Corner)
+    CutPanel(State.X, State.Y, State.W, State.H, 19,
+             rgb(0, 0, 0), 10, GlassSurfaceAlpha * FrameAlpha)
 
     if State.BackgroundImage and not hideBackgroundImage then
-        DrawPicture(State.BackgroundImage,
-                    State.X, State.Y, State.W, State.H,
-                    Layer(11),
-                    GlassSurfaceAlpha * FrameAlpha,
-                    Layout.Corner)
+
+        local bx, by, bw, bh = State.X + 2, State.Y + 2, State.W - 4, State.H - 4
+        DrawPicture(State.BackgroundImage, bx, by, bw, bh,
+                    Layer(11), GlassSurfaceAlpha * FrameAlpha, 0)
+        local cut = 19
+        local mask = rgb(0, 0, 0)
+        Triangle(State.X, State.Y, State.X + cut, State.Y,
+                 State.X, State.Y + cut, mask, 13, FrameAlpha)
+        Triangle(State.X + State.W, State.Y + State.H,
+                 State.X + State.W - cut, State.Y + State.H,
+                 State.X + State.W, State.Y + State.H - cut, mask, 13, FrameAlpha)
     end
 
     Rect(State.X + Layout.Corner, State.Y + 1,
@@ -2210,291 +2222,56 @@ local function DrawFrame(hideBackgroundImage)
 
     DrawBackgroundEffect()
 
-
-    local headerY = State.Y + Layout.TopbarH - 1
-    GradientRect(State.X + 18, headerY,
-                 math.max(40, State.W - 36), 1,
-                 th.AccentA, th.AccentB, 14, 0.22)
-
     local sidebarSectionPad = 10
     local sidebarSectionRight = Geometry.RailX + sidebarSectionPad
         + math.max(40, Geometry.RailW - sidebarSectionPad - sidebarSectionPad)
-    local separatorX = sidebarSectionRight + sidebarSectionPad
+    local separatorX = Geometry.RailX + Geometry.RailW - 2
 
     Line(separatorX, Geometry.RailY + 1,
          separatorX, State.Y + State.H - 2,
          th.Accent, 14, 1, 0.50)
 
-
     DrawGlassBorder(th)
 end
 
-local function StartupEase(t)
-    if t < 0.5 then
-        return 4 * t * t * t
+WrapHeaderLines = function(value, room, size, font)
+    local lines, line = {}, ""
+    local maxChars = math.max(1, math.floor(room / (size * (FontMetrics[font] or 0.5))))
+    local function pushWord(word)
+        while #word > maxChars do
+            if line ~= "" then table.insert(lines, line); line = "" end
+            table.insert(lines, string.sub(word, 1, maxChars))
+            word = string.sub(word, maxChars + 1)
+        end
+        if word == "" then return end
+        local joined = line == "" and word or (line .. " " .. word)
+        if #joined > maxChars then table.insert(lines, line); line = word else line = joined end
     end
-    local f = -2 * t + 2
-    return 1 - (f * f * f) / 2
+    for segment in (tostring(value or "") .. "\n"):gmatch("(.-)\n") do
+        for word in segment:gmatch("%S+") do pushWord(word) end
+        table.insert(lines, line); line = ""
+    end
+    return lines
 end
 
-local function DrawStartupFrame()
-    local th = State.Theme
-    local x, y, w, h = State.X, State.Y, State.W, State.H
-    local st = State.Startup
-    local duration = math.max(0.5, st.Duration or 5)
-    local p = math.max(0, math.min(1, st.Time / duration))
-
-    local function Smooth(v)
-        v = math.max(0, math.min(1, v))
-        return v * v * (3 - 2 * v)
+local function HeaderText(value, x, y, room, size, font, color, z, alpha, spacing)
+    local lines = WrapHeaderLines(value, room, size, font)
+    local step = size + (spacing or 4)
+    for i, line in ipairs(lines) do
+        if line ~= "" then Text(line, math.floor(x + 0.5), math.floor(y + (i - 1) * step + 0.5), color, size, font, z, alpha) end
     end
-
-    local intro = Smooth(p / 0.18)
-    local logoReveal = Smooth((p - 0.07) / 0.20)
-    local titleReveal = Smooth((p - 0.18) / 0.20)
-    local detailReveal = Smooth((p - 0.28) / 0.18)
-    local settle = Smooth((p - 0.40) / 0.28)
-    local corner = math.max(6, math.min(24, tonumber(st.CornerRadius) or 14))
-
-    GlassSurface(x, y, w, h, rgb(11, 13, 20), 10, corner)
-
-    if st.BackgroundImage and st.BackgroundOpacity > 0 then
-        DrawPicture(st.BackgroundImage, x, y, w, h, Layer(11),
-                    math.max(0, math.min(1, st.BackgroundOpacity)), corner)
-        Rect(x, y, w, h, rgb(7, 9, 14), 12, corner, 0.48)
-    else
-        HidePicture(st.BackgroundImage)
-    end
-
-    if st.Border ~= false then
-        Stroke(x, y, w, h, th.Accent, 20, corner, 0.58 * intro)
-        Stroke(x + 1, y + 1, w - 2, h - 2, th.Stroke,
-               21, math.max(5, corner - 1), 0.34 * intro)
-    end
-
-
-    if st.AccentBar ~= false then
-        local railW = math.max(1, (w - 48) * intro)
-        GradientRect(x + (w - railW) / 2, y + 13,
-                     railW, 2, th.AccentA, th.AccentB,
-                     25, 0.88 * intro, 18)
-    end
-
-    local hasLogo = st.ShowLogo ~= false and st.Image ~= nil
-    local logoSize = math.max(36, math.min(76, tonumber(st.LogoSize) or 56))
-    local logoCX = x + w * 0.5
-    local logoTargetY = y + 29
-    local logoLift = (1 - logoReveal) * 10
-    local logoX = logoCX - logoSize / 2
-    local logoY = logoTargetY + logoLift
-
-    if hasLogo then
-        Stroke(logoX - 4, logoY - 4, logoSize + 8, logoSize + 8,
-               th.Accent, 28, 12, 0.72 * logoReveal)
-        DrawPicture(st.Image, logoX, logoY,
-                    logoSize, logoSize, Layer(32), logoReveal, 9)
-    else
-        HidePicture(st.Image)
-    end
-
-    local title = string.upper(tostring(st.Title or State.WindowTitle or "NEXA UI"))
-    local titleSize = 17
-    local titleW = TextWidth(title, titleSize, Fonts.SystemBold)
-
-    local titleBaseY
-    if hasLogo then
-        titleBaseY = y + 29 + logoSize + 21
-    else
-        titleBaseY = y + 47
-    end
-    local titleY = titleBaseY + (1 - titleReveal) * 6
-
-    Text(title, x + (w - titleW) / 2, titleY,
-         th.Text, titleSize, Fonts.SystemBold, 35,
-         0.98 * titleReveal, math.max(40, w - 34), false)
-
-    if st.ShowGameName ~= false and State.GameName and State.GameName ~= "" then
-        local context = string.upper(tostring(State.GameName))
-        local contextSize = 10
-        local contextMaxW = math.max(60, w - 52)
-
-        while #context > 1 and TextWidth(context, contextSize, Fonts.SystemBold) > contextMaxW do
-            context = string.sub(context, 1, #context - 1)
-        end
-
-        local contextW = TextWidth(context, contextSize, Fonts.SystemBold)
-        Text(context, x + (w - contextW) / 2, titleY + 25,
-             th.TextDim, contextSize, Fonts.SystemBold, 35,
-             0.72 * detailReveal, contextMaxW, false)
-    end
-
-    if st.FooterAccent ~= false then
-        local footerY = y + h - 19
-        local ornament = 48 + 16 * settle
-        GradientRect(logoCX - ornament - 9, footerY, ornament, 2,
-                     th.AccentB, th.AccentA, 25,
-                     0.74 * detailReveal, 10)
-        GradientRect(logoCX + 9, footerY, ornament, 2,
-                     th.AccentB, th.AccentA, 25,
-                     0.74 * detailReveal, 10)
-        Circle(logoCX, footerY + 1, 3, th.Accent,
-               26, true, 1, 18, 0.96 * detailReveal)
-        Circle(logoCX, footerY + 1, 5, th.Accent,
-               25, false, 1, 18, 0.54 * detailReveal)
-    end
+    return #lines * step
 end
 
-local function TickStartup(dt)
-    local st = State.Startup
-    if not st.Active then return end
-    st.Time = st.Time + dt
-
-    if st.Phase == "loading" then
-        local t = math.min(st.Time / st.Duration, 1)
-        st.Progress = 1 - (1 - t) * (1 - t)
-        if t >= 1 then
-            st.Phase = "shrink"
-            st.Time = 0
-            st.Progress = 1
-        end
-        return
-    end
-
-    if st.Phase == "shrink" then
-        local t = math.min(st.Time / st.ShrinkDuration, 1)
-        local eased = t * t * (3 - 2 * t)
-        local minW, minH = 64, 64
-        State.W = st.StartW + (minW - st.StartW) * eased
-        State.H = st.StartH + (minH - st.StartH) * eased
-        State.X = st.StartX + (st.StartW - State.W) / 2
-        State.Y = st.StartY + (st.StartH - State.H) / 2
-        if t >= 1 then
-            State.W, State.H = minW, minH
-            State.X = st.StartX + (st.StartW - minW) / 2
-            State.Y = st.StartY + (st.StartH - minH) / 2
-            st.Phase = "pop"
-            st.Time = 0
-        end
-        return
-    end
-
-    if st.Phase == "pop" then
-        local t = math.min(st.Time / st.PopDuration, 1)
-        local c1, c3 = 1.18, 2.18
-        local eased = 1 + c3 * ((t - 1) ^ 3) + c1 * ((t - 1) ^ 2)
-        local minW, minH = 64, 64
-        State.W = minW + (st.TargetW - minW) * eased
-        State.H = minH + (st.TargetH - minH) * eased
-        State.X = st.TargetX + (st.TargetW - State.W) / 2
-        State.Y = st.TargetY + (st.TargetH - State.H) / 2
-        if t >= 1 then
-            State.X, State.Y = st.TargetX, st.TargetY
-            State.W, State.H = st.TargetW, st.TargetH
-            st.Phase = "reveal"
-            st.Time = 0
-            st.RevealProgress = 0
-        end
-        return
-    end
-
-    if st.Phase == "reveal" then
-        local t = math.min(st.Time / st.RevealDuration, 1)
-        st.RevealProgress = t * t * (3 - 2 * t)
-        if t >= 1 then
-            st.RevealProgress = 1
-            st.Active = false
-            st.Phase = "done"
-        end
-    end
+local function ContentHeaderHeight(tab)
+    local width = Geometry.ContentW - Layout.ContentPadX * 2
+    local titleLines = #WrapHeaderLines(tab.Name, width, 24, Fonts.SystemBold)
+    local subtitleLines = (tab.Subtitle and tab.Subtitle ~= "") and #WrapHeaderLines(tab.Subtitle, width, 14, Fonts.System) or 0
+    return math.max(60, 21 + titleLines * 28 + (subtitleLines > 0 and (subtitleLines * 18 + 10) or 0))
 end
 
-local function StartStartup(opts)
-    opts = opts or {}
-    local st = State.Startup
-    local vp = Camera.ViewportSize
-
-    st.Enabled = opts.Enabled ~= false
-    st.Duration = math.max(0.5, tonumber(opts.Duration) or 5.0)
-    st.TextFade = opts.TextFade ~= false
-    st.Title = opts.Title ~= nil and tostring(opts.Title) or State.WindowTitle
-    st.LogoSize = math.max(36, math.min(76, tonumber(opts.LogoSize) or 56))
-    st.ShowLogo = opts.ShowLogo ~= false
-    st.ShowGameName = opts.ShowGameName ~= false
-    st.Border = opts.Border ~= false
-    st.AccentBar = opts.AccentBar ~= false
-    st.FooterAccent = opts.FooterAccent ~= false
-    st.CornerRadius = math.max(6, math.min(24, tonumber(opts.CornerRadius) or 14))
-    st.BackgroundOpacity = tonumber(opts.BackgroundOpacity) or 0.22
-    if st.BackgroundOpacity > 1 then st.BackgroundOpacity = st.BackgroundOpacity / 100 end
-    st.BackgroundOpacity = math.max(0, math.min(1, st.BackgroundOpacity))
-
-    if opts.Image ~= nil and opts.Image ~= st.ImageSource then
-        HidePicture(st.Image)
-        st.ImageSource = opts.Image
-        st.Image = LoadPicture(opts.Image, "splash_logo")
-    elseif opts.Image == nil then
-        HidePicture(st.Image)
-        st.Image = nil
-        st.ImageSource = nil
-    end
-
-    if opts.BackgroundImage ~= nil and opts.BackgroundImage ~= st.BackgroundImageSource then
-        HidePicture(st.BackgroundImage)
-        st.BackgroundImageSource = opts.BackgroundImage
-        st.BackgroundImage = LoadPicture(opts.BackgroundImage, "splash_background")
-    elseif opts.BackgroundImage == nil then
-        HidePicture(st.BackgroundImage)
-        st.BackgroundImage = nil
-        st.BackgroundImageSource = nil
-    end
-
-    st.TargetW, st.TargetH = State.W, State.H
-    st.TargetX, st.TargetY = State.X, State.Y
-
-    if not st.Enabled then
-        st.Active = false
-        st.Phase = "done"
-        st.Progress = 1
-        st.RevealProgress = 1
-        State.Visible = 1
-        State.Open = true
-        State.RailOpen = 1
-
-        State.Frame = math.max(1, State.Frame or 0)
-        State.LastTick = os.clock()
-        return
-    end
-
-    st.Time = 0
-    st.Progress = 0
-    st.RevealProgress = 0
-    st.TypewriterCount = 0
-    st.TypewriterAccumulator = 0
-    st.TypewriterLastTime = 0
-    st.Phase = "loading"
-    st.Active = true
-
-    local splashW, splashH = 300, 196
-    local size = opts.Size
-    if type(size) == "userdata" or type(size) == "table" then
-        splashW = tonumber(size.X or size.x or size[1]) or splashW
-        splashH = tonumber(size.Y or size.y or size[2]) or splashH
-    end
-    splashW = math.max(260, math.min(460, splashW))
-    local minSplashH = (st.ShowLogo ~= false and st.Image ~= nil)
-        and (st.LogoSize + 112) or 138
-    splashH = math.max(minSplashH, math.min(280, splashH))
-
-    st.StartW = splashW
-    st.StartH = splashH
-    st.StartX = math.floor((vp.X - st.StartW) / 2)
-    st.StartY = math.floor((vp.Y - st.StartH) / 2)
-
-    State.W, State.H = st.StartW, st.StartH
-    State.X, State.Y = st.StartX, st.StartY
-    State.Visible = 1
-    State.Open = true
-    State.RailOpen = 0
+local function StartupRevealCount(total)
+    return total
 end
 
 local TitleButtons = {
@@ -2502,358 +2279,59 @@ local TitleButtons = {
     Menu   = { Size = 22, X = 0, Y = 0 },
 }
 
-local function DrawTitleBar(title, subtitle)
-    local th = State.Theme
-    local island = State.Island
-
-    local profileRect = State.ProfileAvatarRect
-    if Input.Click and profileRect
-    and MouseIn(profileRect.X, profileRect.Y, profileRect.W, profileRect.H) then
-        State.ProfileNamesVisible = not State.ProfileNamesVisible
-        Input.Click = false
-    end
-
-    local function drawIslandIcon(action, name, x, y, size, color, accentColor, z, alpha, activeAlpha)
-        local key = string.lower(tostring(name or "sparkles"))
-        if key == "performance" then key = "eye" end
-
-        local bytes = IconImage.bytes(key, color)
-        if bytes then
-            local image = action._IslandImage
-            if not image then
-                image = Drawing.new("Image")
-                action._IslandImage = image
-                action._IslandImageData = bytes
-                image.Data = bytes
-                pcall(function() image.Rounding = 0 end)
-            elseif action._IslandImageData ~= bytes then
-
-                action._IslandImageData = bytes
-                image.Data = bytes
-            end
-
-            image.Position = Vector2.new(math.floor(x + 0.5), math.floor(y + 0.5))
-            local sz = math.max(1, math.floor(size + 0.5))
-            image.Size = Vector2.new(sz, sz)
-            image.ZIndex = Layer(z)
-            local finalAlpha = math.max(0, math.min(1, (alpha or 1) * FrameAlpha))
-            image.Transparency = finalAlpha
-            image.Visible = State.Alive and finalAlpha > 0.001
-        end
-
-        local markerSize = 3
-        Rect(x + (size - markerSize) * 0.5, y + size + 2,
-             markerSize, markerSize, accentColor, z + 1, markerSize * 0.5,
-             activeAlpha)
-    end
-
-    local islandText = string.upper(tostring(title or "NEXA UI"))
-    local islandTextSize = 15
-    local islandPadX = 14
-    local measuredTextW = TextWidth(islandText, islandTextSize, Fonts.SystemBold)
-    local collapsedW = math.max(118, measuredTextW + islandPadX * 2)
-
-    local leftCount, rightCount = 0, 0
-    for _, action in ipairs(island.Actions) do
-        if action.Side == "left" then
-            leftCount = leftCount + 1
-        elseif action.Side == "right" then
-            rightCount = rightCount + 1
-        end
-    end
-
-    local hasActions = (leftCount + rightCount) > 0
-    local actionSlotW = 38
-    local sideSlots = math.max(leftCount, rightCount)
-
-    local collapsedHalfW = collapsedW * 0.5
-    local expandedHalfW = collapsedHalfW + sideSlots * actionSlotW
-    local islandMaxHalfW = math.max(collapsedHalfW, (State.W - 28) * 0.5)
-    expandedHalfW = math.min(expandedHalfW, islandMaxHalfW)
-
-    local targetExpand = (hasActions and island.Open) and 1 or 0
-    if State.NoAnim then
-        island.Expand = targetExpand
-        island.IconReveal = targetExpand
-    else
-
-
-        island.Expand = Approach(island.Expand or 0, targetExpand, 8.5, State.Delta)
-        if math.abs(island.Expand - targetExpand) < 0.006 then
-            island.Expand = targetExpand
-        end
-
-        local iconTarget = (island.Open and island.Expand >= 0.965) and 1 or 0
-        island.IconReveal = Approach(island.IconReveal or 0, iconTarget, 13, State.Delta)
-        if math.abs(island.IconReveal - iconTarget) < 0.01 then
-            island.IconReveal = iconTarget
-        end
-
-        if not island.Open and island.IconReveal > 0.035 then
-            island.Expand = math.max(island.Expand, 1)
-        end
-    end
-
-    local islandH = 32
-    local islandCX = math.floor(State.X + State.W * 0.5 + 0.5)
-    local currentHalfW = math.floor(
-        collapsedHalfW + (expandedHalfW - collapsedHalfW) * island.Expand + 0.5
-    )
-    local islandX = islandCX - currentHalfW
-    local islandW = currentHalfW * 2
-    local islandY = math.floor(State.Y + (Layout.TopbarH - islandH) * 0.5 + 0.5)
-
-    do
-        local avatarSize = 30
-        local avatarX = State.X + State.W - 12 - avatarSize
-        local avatarY = State.Y + math.floor((Layout.TopbarH - avatarSize) * 0.5 + 0.5)
-        local profileRight = avatarX - 9
-        local profileLeft = islandX + islandW + 12
-        local profileW = math.max(0, profileRight - profileLeft)
-
-        State.ProfileAvatarRect = {X = avatarX, Y = avatarY, W = avatarSize, H = avatarSize}
-
-        if profileW >= 58 then
-            local displayName = tostring(State.ProfileDisplayName or LocalPlayer.DisplayName or LocalPlayer.Name or "Player")
-            local username = "@" .. tostring(State.ProfileUsername or LocalPlayer.Name or "Player")
-            local displaySize = 14
-            local usernameSize = 12
-
-            local function fitRight(text, size, font, maxW)
-                if TextWidth(text, size, font) <= maxW then return text end
-                local suffix = "..."
-                while #text > 1 and TextWidth(text .. suffix, size, font) > maxW do
-                    text = string.sub(text, 1, #text - 1)
-                end
-                return text .. suffix
-            end
-
-            displayName = fitRight(displayName, displaySize, Fonts.SystemBold, profileW)
-            username = fitRight(username, usernameSize, Fonts.SystemBold, profileW)
-
-            local displayW = TextWidth(displayName, displaySize, Fonts.SystemBold)
-            local usernameW = TextWidth(username, usernameSize, Fonts.SystemBold)
-            local centerY = State.Y + Layout.TopbarH * 0.5
-
-            if State.ProfileNamesVisible ~= false then
-                Text(displayName, profileRight - displayW, centerY - 15,
-                     th.Text, displaySize, Fonts.SystemBold, 35, 0.98, profileW, false)
-                Text(username, profileRight - usernameW, centerY + 2,
-                     th.TextMuted, usernameSize, Fonts.SystemBold, 35, 0.88, profileW, false)
-            end
-
-            if State.ProfileAvatar then
-                DrawPicture(State.ProfileAvatar, avatarX, avatarY,
-                            avatarSize, avatarSize, Layer(35), FrameAlpha, avatarSize * 0.5)
-                Stroke(avatarX - 2, avatarY - 2, avatarSize + 4, avatarSize + 4,
-                       th.Accent, 34, (avatarSize + 4) * 0.5, 0.95)
-            end
-        else
-            State.ProfileAvatarRect = nil
-            HidePicture(State.ProfileAvatar)
-        end
-    end
-
-    if State.ShowGameName and State.GameName and State.GameName ~= "" then
-        local gameText = string.upper(tostring(State.GameName))
-        local gameTextSize = 11
-        local gameX = State.X + 14
-        local gameMaxW = math.max(0, islandX - gameX - 12)
-
-        if gameMaxW >= 28 then
-            local suffix = "..."
-            while #gameText > 1 and TextWidth(gameText, gameTextSize, Fonts.SystemBold) > gameMaxW do
-                gameText = string.sub(gameText, 1, #gameText - 1)
-            end
-            if gameText ~= string.upper(tostring(State.GameName)) and #gameText > 3 then
-                while #gameText > 1 and TextWidth(gameText .. suffix, gameTextSize, Fonts.SystemBold) > gameMaxW do
-                    gameText = string.sub(gameText, 1, #gameText - 1)
-                end
-                gameText = gameText .. suffix
-            end
-
-            Text(gameText, gameX, TextMidY(State.Y, Layout.TopbarH, gameTextSize),
-                 th.TextDim, gameTextSize, Fonts.SystemBold, 33, 0.78,
-                 gameMaxW, false)
-        end
-    end
-
-    FrostedSurface(islandX, islandY, islandW, islandH,
-                   th.Panel, 31, 10)
-    Stroke(islandX, islandY, islandW, islandH,
-           th.Stroke, 32, 10, 0.56)
-
-
-    local textY = TextMidY(islandY, islandH, islandTextSize)
-    local textX = islandCX - measuredTextW * 0.5
-    local titleColor
-    if State.NoAnim then
-        titleColor = mix(th.AccentA, th.AccentB, 0.5)
-    else
-        local phase = (math.sin(os.clock() * 2.15) + 1) * 0.5
-        local sweep = (math.sin(os.clock() * 1.35 + 0.8) + 1) * 0.5
-        local gradientColor = mix(th.AccentA, th.AccentB, phase)
-        local highlight = math.max(0, (sweep - 0.72) / 0.28)
-        highlight = highlight * highlight
-        titleColor = mix(gradientColor, th.Text, highlight * 0.72)
-    end
-
-    Text(islandText, textX, textY,
-         titleColor, islandTextSize, Fonts.SystemBold,
-         34, 1.0, nil, false)
-
-    do
-
-        local actionAlpha = Clamp(island.IconReveal, 0, 1)
-        local leftIndex, rightIndex = 0, 0
-
-        for _, action in ipairs(island.Actions) do
-            local index
-            if action.Side == "left" then
-                leftIndex = leftIndex + 1
-                index = leftIndex
-            else
-                rightIndex = rightIndex + 1
-                index = rightIndex
-            end
-
-            local slotCX
-            if action.Side == "left" then
-                slotCX = islandCX - collapsedW * 0.5 - actionSlotW * (index - 0.5)
-            else
-                slotCX = islandCX + collapsedW * 0.5 + actionSlotW * (index - 0.5)
-            end
-
-            local boxSize = 24
-            local boxX = slotCX - boxSize * 0.5
-            local boxY = islandY + (islandH - boxSize) * 0.5
-            local hover = MouseIn(boxX, boxY, boxSize, boxSize)
-            local active = false
-            if type(action.GetActive) == "function" then
-                local ok, value = pcall(action.GetActive)
-                active = ok and value == true
-            elseif action.Active ~= nil then
-                active = action.Active == true
-            end
-
-            local iconAlpha = actionAlpha * (hover and 0.82 or (active and 0.74 or 0.52))
-            local activeAlpha = actionAlpha * (active and 1.0 or 0.0)
-
-            drawIslandIcon(action, action.Icon or "sparkles",
-                           boxX + 4, boxY + 3, 16,
-                           th.TextDim, th.AccentA,
-                           37, iconAlpha, activeAlpha)
-
-            if hover and Input.Click and actionAlpha > 0.90 then
-                if type(action.Callback) == "function" then
-                    pcall(action.Callback, action)
-                end
-                Input.Click = false
-                return
-            end
-        end
-    end
-
-    local titleHitX = islandCX - collapsedW * 0.5
-    if hasActions and MouseIn(titleHitX, islandY, collapsedW, islandH)
-       and Input.Click and not State.Drag then
-        island.Open = not island.Open
-        Input.Click = false
-        return
-    end
-
-    if MouseIn(State.X, State.Y, State.W, Layout.TopbarH)
-       and Input.Click and not State.Drag then
-        BeginDrag()
-        Input.Click = false
-    end
-end
-
 local function TickRailOpen(dt)
-
-
-    if Geometry.RailX == nil or Geometry.RailY == nil
-       or Geometry.RailW == nil or Geometry.RailH == nil then
-        Geometry.Recalculate()
-    end
-
-    local sectionPadLeft = 10
-    local sectionPadRight = 10
-    local sectionPadY = 5
-
-
-    local railX = Geometry.RailX or State.X
-    local railY = Geometry.RailY or (State.Y + Layout.TopbarH)
-    local railW = Geometry.RailW or Layout.TabRailNarrow
-    local railH = Geometry.RailH or math.max(1, State.H - Layout.TopbarH - Geometry.FooterH)
-
-    local sectionX = railX + sectionPadLeft
-    local sectionY = railY + sectionPadY
-    local sectionW = math.max(40, railW - sectionPadLeft - sectionPadRight)
-    local sectionH = math.max(44, railH - 10)
-
-    local overSidebar = MouseIn(sectionX, sectionY, sectionW, sectionH)
-
-    local target = (State.RailPinned or overSidebar) and 1 or 0
-
-
-    State.RailOpen = Approach(State.RailOpen, target, 7, dt)
-    if math.abs(State.RailOpen - target) < 0.001 then
-        State.RailOpen = target
-    end
-end
-
-local function StartupRevealCount(total, progress)
-    if not State.Startup.Active or State.Startup.Phase ~= "reveal" then
-        return total
-    end
-    if total <= 0 then return 0 end
-    return math.min(total, math.max(0, math.ceil(total * progress)))
+    State.RailOpen = 1
+    State.RailPinned = true
 end
 
 local function DrawTabRail()
     local th = State.Theme
-    local openAmt = State.RailOpen
+    local openAmt = 1
 
     local railX = Geometry.RailX or State.X
-    local railY = Geometry.RailY or (State.Y + Layout.TopbarH)
+    local railY = Geometry.RailY or State.Y
     local railW = Geometry.RailW or Layout.TabRailNarrow
-    local railH = Geometry.RailH or math.max(1, State.H - Layout.TopbarH - Geometry.FooterH)
+    local railH = Geometry.RailH or State.H
 
     local sectionPadX = 10
-
     local sectionX = railX + sectionPadX
-    local sectionY = railY + 5
-    local sectionW = math.max(40, railW - sectionPadX - sectionPadX)
-    local sectionH = math.max(44, railH - 10)
+    local sectionY = railY + 8
+    local sectionW = math.max(40, railW - sectionPadX * 2)
+    local sectionH = math.max(44, railH - 16)
 
-    FrostedSurface(sectionX, sectionY, sectionW, sectionH,
-                   rgb(12, 16, 25), 36, 12)
-    Stroke(sectionX, sectionY, sectionW, sectionH,
-           th.Stroke, 37, 12, 0.42)
+    local sx, sy, sw, sh = railX + 2, railY + 2, railW - 4, railH - 4
+    local bg = rgb(17, 17, 20)
+    local cut = 17
+    Rect(sx + cut, sy, sw - cut, sh, bg, 36, 0, GlassSurfaceAlpha * FrameAlpha)
+    Rect(sx, sy + cut, cut, sh - cut, bg, 36, 0, GlassSurfaceAlpha * FrameAlpha)
+    Triangle(sx + cut, sy, sx + cut, sy + cut, sx, sy + cut, bg, 36, GlassSurfaceAlpha * FrameAlpha)
+    Line(railX + railW - 2, railY + 12, railX + railW - 2, railY + railH - 12,
+         th.Stroke, 37, 1, 0.45 * FrameAlpha)
 
-    local hasBrandLogo = State.ShowLogo ~= false and State.Logo ~= nil
-    local brandH = hasBrandLogo and 49 or 6
-    local brandLogoSize = 38
-    local brandLogoX = sectionX + (sectionW - brandLogoSize) * 0.5
-    local brandLogoY = sectionY + 6
-
-    if hasBrandLogo then
-        DrawPicture(State.Logo, brandLogoX, brandLogoY,
-                    brandLogoSize, brandLogoSize,
-                    Layer(40), FrameAlpha, 8)
-
-        Line(sectionX + 13, sectionY + brandH,
-             sectionX + sectionW - 13, sectionY + brandH,
-             th.Stroke, 39, 1, 0.26)
+    local brandWidth = sectionW - 20
+    local titleLines = #WrapHeaderLines(State.WindowTitle or "Nexa", brandWidth, 20, Fonts.SystemBold)
+    local subtitleLines = State.WindowSubtitle ~= "" and #WrapHeaderLines(State.WindowSubtitle, brandWidth, 12, Fonts.System) or 0
+    local brandH = math.max(57, 18 + titleLines * 24 + (subtitleLines > 0 and (subtitleLines * 16 + 8) or 0) + 8)
+    if Input.Click and MouseIn(railX + 20, railY + 5, railW - 30, brandH + 8) and not State.Drag then
+        BeginDrag()
+        Input.Click = false
     end
+    HeaderText(State.WindowTitle or "Nexa", sectionX + 11, sectionY + 13,
+               brandWidth, 20, Fonts.SystemBold, th.Text, 42, FrameAlpha, 4)
+    if subtitleLines > 0 then
+        HeaderText(State.WindowSubtitle, sectionX + 11, sectionY + 18 + titleLines * 24,
+                   brandWidth, 12, Fonts.System, th.TextDim, 42, FrameAlpha, 4)
+    end
+    Line(sectionX + 9, sectionY + brandH,
+         sectionX + sectionW - 9, sectionY + brandH,
+         th.Accent, 42, 1.5, FrameAlpha)
 
     local rowY = sectionY + brandH + 7
     local padX = 8
     local rowH = Layout.TabRowH
     local tabGap = Layout.TabGap
     local iconSize = Layout.TabIcon
-    local visibleTabs = StartupRevealCount(#State.Tabs, State.Startup.RevealProgress)
+    local visibleTabs = StartupRevealCount(#State.Tabs)
     local settingsIndex = nil
     for i, tab in ipairs(State.Tabs) do
         if tab.IsSettings then settingsIndex = i break end
@@ -2874,6 +2352,10 @@ local function DrawTabRail()
             local w = narrowTabW + (wideTabW - narrowTabW) * openAmt
 
             local x = sectionX + (sectionW - w) * 0.5
+            if tab.IsSettings then
+                w = rowH - 2
+                x = sectionX + sectionW - w - 6
+            end
             local y = tab.IsSettings and (sectionY + sectionH - rowH - 11) or rowY
             local yOffset = (rowH - tabRowH) * 0.5
             y = y + yOffset
@@ -2881,14 +2363,9 @@ local function DrawTabRail()
             local railClipTop = sectionY + 1
             local railClipBottom = sectionY + sectionH - 1
             local insideAnimatedRail = (y >= railClipTop and y + tabRowH <= railClipBottom)
-            if State.Startup.Active and not insideAnimatedRail then
-                rowY = rowY + rowH + tabGap
-                continue
-            end
 
             local hover = MouseIn(x, y, w, tabRowH)
             local active = (State.ActiveIndex == i)
-
 
             tab.Glow = Approach(tab.Glow or 0, active and 1 or 0, 16, State.Delta)
             tab.Hover = Approach(tab.Hover or 0, hover and 1 or 0, 18, State.Delta)
@@ -2901,20 +2378,22 @@ local function DrawTabRail()
             end
 
             local stateMix = tab.Hover * 0.55 + tab.Glow * 0.45
-            local bgColor = mix(rgb(40, 44, 58), rgb(55, 60, 76), stateMix)
-            local pillRadius = math.max(8, math.floor(tabRowH * 0.5))
-            SolidSurface(x, y, w, tabRowH, bgColor, 40, pillRadius)
+            local bgColor = mix(rgb(22, 22, 27), rgb(33, 30, 42), stateMix)
+            local tabCut = 9
+            CutPanel(x, y, w, tabRowH, tabCut, bgColor, 40, FrameAlpha)
 
             if tab.Glow > 0.01 then
-                local activeColor = mix(bgColor, th.Accent, tab.Glow * 0.16)
-                SolidSurface(x, y, w, tabRowH, activeColor, 41, pillRadius)
+                local activeColor = mix(bgColor, th.Accent, tab.Glow * 0.13)
+                CutPanel(x, y, w, tabRowH, tabCut, activeColor, 41, FrameAlpha)
             end
 
+            local borderAlpha = active and 0.65 or (hover and 0.30 or 0.16)
+            CutOutline(x, y, w, tabRowH, tabCut, th.Accent, 42, borderAlpha * FrameAlpha, 1)
             local collapsedIconSize = math.min(iconSize, tabRowH - 10)
             local centeredIconX = x + math.max(0, (narrowTabW - collapsedIconSize) / 2)
             local expandedIconX = x + 12
-            local iconX = centeredIconX + (expandedIconX - centeredIconX) * openAmt
             local drawIconSize = iconSize + (collapsedIconSize - iconSize) * (1 - openAmt)
+            local iconX = tab.IsSettings and (x + (w - drawIconSize) / 2) or (centeredIconX + (expandedIconX - centeredIconX) * openAmt)
             local iconY = y + (tabRowH - drawIconSize) / 2
             local iconAlpha = 0.55 + 0.45 * math.max(tab.Glow, tab.Hover)
             local iconColor = tab.Glow > 0.5 and th.Accent or th.TextDim
@@ -2926,11 +2405,10 @@ local function DrawTabRail()
                      iconColor, 44, 2, iconAlpha)
             end
 
-
-            if openAmt > 0.02 then
-                local labelX = x + 38
+            if openAmt > 0.02 and not tab.IsSettings then
+                local labelX = x + 43
                 local labelRoom = w - (labelX - x) - 8
-                local labelY = TextMidY(y, tabRowH, Layout.TextSize)
+                local labelY = TextMidY(y, tabRowH, Layout.TextSize + 2)
                 local labelColor = th.Text
                 local labelAlpha = openAmt * (0.7 + 0.3 * math.max(tab.Glow, tab.Hover))
                 if tab.Glow > 0.5 then
@@ -2938,10 +2416,45 @@ local function DrawTabRail()
                     labelAlpha = openAmt
                 end
                 Text(tab.Name, labelX, labelY,
-                     labelColor, Layout.TextSize, Fonts.SystemBold,
+                     labelColor, Layout.TextSize + 2, Fonts.SystemBold,
                      45, labelAlpha, labelRoom)
             end
 
+            if tab.IsSettings then
+                local footerSeparatorY = y - 12
+                Line(sectionX + 9, footerSeparatorY, sectionX + sectionW - 9, footerSeparatorY,
+                     th.Accent, 42, 1.5, FrameAlpha)
+                local profileX = sectionX + 7
+                local avatarSize = tabRowH - 2
+                local profileY = y + (tabRowH - avatarSize) / 2
+                local cx, cy = profileX + avatarSize / 2, profileY + avatarSize / 2
+                local avatarHover = MouseInCircle(cx, cy, avatarSize / 2 + 2)
+                if State.ProfileAvatar and State.ProfileAvatar.Image then
+                    DrawPicture(State.ProfileAvatar, profileX, profileY, avatarSize, avatarSize, Layer(44), FrameAlpha, avatarSize / 2)
+                else
+                    Circle(cx, cy, avatarSize / 2, rgb(29, 26, 36), 44, true, 1, 32, FrameAlpha)
+                    local initial = string.upper(string.sub(State.ProfileUsername or "P", 1, 1))
+                    local initialSize = 19
+                    Text(initial, cx - TextWidth(initial, initialSize, Fonts.SystemBold) / 2,
+                         cy - initialSize / 2 - 2, rgb(255, 255, 255), initialSize, Fonts.SystemBold, 45, FrameAlpha)
+                end
+                Circle(cx, cy, avatarSize / 2 + 1, th.Accent,
+                       46, false, avatarHover and 2.2 or 1.8, 40, FrameAlpha)
+                if State.ProfileNamesVisible ~= false then
+                    local nameX = profileX + avatarSize + 9
+                    local nameWidth = math.max(0, x - nameX - 6)
+                    if nameWidth > 12 then
+                        Text(State.ProfileDisplayName or tostring(LocalPlayer.DisplayName), nameX, y + 2,
+                             rgb(255, 255, 255), 14, Fonts.SystemBold, 45, FrameAlpha, nameWidth)
+                        Text("@" .. (State.ProfileUsername or tostring(LocalPlayer.Name)), nameX, y + 21,
+                             rgb(255, 255, 255), 12, Fonts.System, 45, FrameAlpha, nameWidth)
+                    end
+                end
+                if avatarHover and Input.Click then
+                    State.ProfileNamesVisible = not (State.ProfileNamesVisible ~= false)
+                    Input.Click = false
+                end
+            end
 
             if hover and Input.Click then
                 if State.ActiveIndex ~= i then
@@ -3079,7 +2592,6 @@ function Base:SetValue(v) end
 function Base:Draw(x, y, w) end
 function Base:Input(x, y, w) end
 
-
 local function Register(name, constructor)
     Controls[name] = constructor
 end
@@ -3213,7 +2725,6 @@ Register("Button", function(parent, opts)
                    lc, Layout.TextSize, Fonts.SystemBold, 54,
                    self.Enabled and 1 or 0.5, labelRoom)
 
-
         if self.Title ~= "" then
             local titleY = TextMidY(y, Layout.ButtonH + 6, Layout.TextSize)
             Text(self.Title, x, titleY,
@@ -3249,7 +2760,6 @@ Register("Toggle", function(parent, opts)
     self.Value   = opts.Default and true or false
     self.Callback = opts.Callback
     self.Height  = Layout.ToggleH
-
 
     self._knob = self.Value and 1 or 0
 
@@ -3309,7 +2819,6 @@ Register("Toggle", function(parent, opts)
                    knobColor, 54, true, 1, 18, 1)
         end
 
-
         if self.Title ~= "" then
             local titleY = TextMidY(y, self.Height, Layout.TextSize)
             Text(self.Title, x, titleY,
@@ -3317,7 +2826,6 @@ Register("Toggle", function(parent, opts)
                  51, self.Enabled and 0.92 or 0.4,
                  trackX - x - 10)
         end
-
 
         if self.Description ~= "" then
             local descY = y + self.Height - 4
@@ -3452,7 +2960,6 @@ Register("Slider", function(parent, opts)
         local trackH = Layout.SliderH
         local knobR  = Layout.SliderKnob
 
-
         local valueText = tostring(self.Value) .. self.Suffix
         local valueW = TextWidth(valueText, Layout.TextSize, Fonts.Monospace)
         local badgeW = valueW + 14
@@ -3460,14 +2967,12 @@ Register("Slider", function(parent, opts)
         local badgeX = x + w - badgeW
         local badgeY = y + 2
 
-
         if self.Title ~= "" then
             Text(self.Title, x, y + 1,
                  th.Text, Layout.TextSize, Fonts.System,
                  51, self.Enabled and 0.92 or 0.4,
                  w - badgeW - 12)
         end
-
 
         Rect(badgeX, badgeY, badgeW, badgeH,
              th.PanelHi, 52, 4, 0.85)
@@ -3479,7 +2984,6 @@ Register("Slider", function(parent, opts)
              th.Accent, Layout.TextSize, Fonts.Monospace,
              54, 1)
 
-
         local trackY = y + 29
         local trackX = x
         local trackW = w
@@ -3487,14 +2991,12 @@ Register("Slider", function(parent, opts)
         Rect(trackX, trackY - trackH / 2, trackW, trackH,
              th.Track, 51, trackH / 2, 0.8)
 
-
         local f = frac()
         local fillW = trackW * f
         if fillW > 0.5 then
             Rect(trackX, trackY - trackH / 2, fillW, trackH,
                  th.Accent, 52, trackH / 2, 0.85)
         end
-
 
         local knobX = trackX + fillW
         local hover = MouseIn(x, trackY - 10, w, 20) and self.Enabled
@@ -3506,7 +3008,7 @@ Register("Slider", function(parent, opts)
 
         local kR = knobR + self._knobAnim * 2
         Circle(knobX, trackY, kR + 3,
-               th.Accent, 53, false, 1.4, 24, 0.3 + self._knobAnim * 0.5)
+               th.Accent, 53, false, 1.4, 24, (0.3 + self._knobAnim * 0.5))
         Circle(knobX, trackY, kR,
                th.Text, 54, true, 1, 24, 1)
     end
@@ -3730,7 +3232,6 @@ local function LayoutInline(row, x, y, w)
         if ctrl.Height > maxH then maxH = ctrl.Height end
     end
 
-
     for i = 1, n do
         local ctrl = row.Cells[i]
         if not ctrl.Hidden then
@@ -3747,7 +3248,6 @@ end
 local function InputInline(row, x, y, w)
     local n = #row.Cells
     if n == 0 then return 0 end
-
 
     local weights = row.Weights or {}
     local total = 0
@@ -3788,7 +3288,6 @@ local TickPerformanceOverlay
 
 local ContentCursor = { y = 0 }
 
-
 local DrawRow
 local InputRow
 
@@ -3797,7 +3296,6 @@ local function IsSection(row)
 end
 
 local function GetSectionHeaderHeight(section)
-
 
     if section.Description and section.Description ~= "" then
         return Layout.SectionTitleH + Layout.SectionDescH + 17
@@ -3855,9 +3353,6 @@ local function MeasureSection(section, w)
     return headerH + visiblePanelH
 end
 
-local ActiveClipTop = nil
-local ActiveClipBottom = nil
-
 local function VerticalVisible(y, h)
     if ActiveClipTop == nil or ActiveClipBottom == nil then return true end
     h = math.max(0, h or 0)
@@ -3869,7 +3364,6 @@ local function DrawSection(section, x, y, w)
 
     local headerH = GetSectionHeaderHeight(section)
     local collapse = Clamp(section._collapse or 0, 0, 1)
-
 
     local contentH = 0
     for _, child in ipairs(section.Rows or {}) do
@@ -3904,12 +3398,32 @@ local function DrawSection(section, x, y, w)
     local clippedH = math.max(0, clippedBottom - clippedTop)
     if clippedH <= 0 then return end
 
-    FrostedSurface(x, clippedTop, w, clippedH,
-                   State.Theme.Panel, 40, Layout.SectionCorner)
-    Stroke(x, clippedTop, w, clippedH,
-           State.Theme.Stroke, 41, Layout.SectionCorner, 0.42)
+    if clippedTop == y and clippedBottom == y + totalH then
+        CutPanel(x, y, w, totalH, 10, State.Theme.Panel, 40, GlassSurfaceAlpha * FrameAlpha)
+        CutOutline(x, y, w, totalH, 10, mix(State.Theme.Stroke, State.Theme.Accent, 0.42), 41, 0.82 * FrameAlpha, 1)
+    else
+        local cut = math.min(10, w * 0.25, clippedH * 0.25)
+        local fill, alpha = State.Theme.Panel, GlassSurfaceAlpha * FrameAlpha
+        local edgeAlpha = 0.82 * FrameAlpha
 
-    local headerVisible = (y >= viewportTop and y + headerH <= viewportBottom)
+        if clippedH > cut * 2 then
+            Rect(x + cut, clippedTop, w - cut, cut, fill, 40, 0, alpha)
+            Rect(x, clippedTop + cut, w, clippedH - cut * 2, fill, 40, 0, alpha)
+            Rect(x, clippedBottom - cut, w - cut, cut, fill, 40, 0, alpha)
+            Triangle(x, clippedTop + cut, x + cut, clippedTop, x + cut, clippedTop + cut, fill, 40, alpha)
+            Triangle(x + w - cut, clippedBottom - cut, x + w, clippedBottom - cut, x + w - cut, clippedBottom, fill, 40, alpha)
+            Line(x + cut, clippedTop, x + w, clippedTop, mix(State.Theme.Stroke, State.Theme.Accent, 0.42), 41, 1.3, edgeAlpha)
+            Line(x, clippedTop + cut, x + cut, clippedTop, mix(State.Theme.Stroke, State.Theme.Accent, 0.42), 41, 1.3, edgeAlpha)
+            Line(x, clippedTop + cut, x, clippedBottom, mix(State.Theme.Stroke, State.Theme.Accent, 0.42), 41, 1.3, edgeAlpha)
+            Line(x, clippedBottom, x + w - cut, clippedBottom, mix(State.Theme.Stroke, State.Theme.Accent, 0.42), 41, 1.3, edgeAlpha)
+            Line(x + w - cut, clippedBottom, x + w, clippedBottom - cut, mix(State.Theme.Stroke, State.Theme.Accent, 0.42), 41, 1.3, edgeAlpha)
+            Line(x + w, clippedTop, x + w, clippedBottom - cut, mix(State.Theme.Stroke, State.Theme.Accent, 0.42), 41, 1.3, edgeAlpha)
+        else
+            Rect(x, clippedTop, w, clippedH, fill, 40, 0, alpha)
+        end
+    end
+
+    local headerVisible = (y + headerH > viewportTop and y < viewportBottom)
     if headerVisible then
         local titleX = x + Layout.SectionPadX
         local chevronCX = x + w - Layout.SectionPadX - 7
@@ -3944,8 +3458,8 @@ local function DrawSection(section, x, y, w)
         local cx = downRX + (rightRX - downRX) * collapse
         local cy = downRY + (rightRY - downRY) * collapse
 
-        Bar(ax, ay, bx, by, 1.45, State.Theme.Accent, 51, 0.88)
-        Bar(bx, by, cx, cy, 1.45, State.Theme.Accent, 51, 0.88)
+        Line(ax, ay, bx, by, State.Theme.Accent, 51, 1.6, 0.88)
+        Line(bx, by, cx, cy, State.Theme.Accent, 51, 1.6, 0.88)
 
         local separatorAlpha = 0.50 * (1 - collapse)
         if separatorAlpha > 0.01 then
@@ -3978,12 +3492,12 @@ local function DrawSection(section, x, y, w)
             end
 
             local h = estimatedH
-            local fullyInsideViewport =
-                cy >= viewportTop and
-                (cy + estimatedH) <= contentBottom and
-                (cy + estimatedH) <= viewportBottom
+            local intersectsViewport =
+                (cy + estimatedH) > viewportTop and
+                cy < contentBottom and
+                cy < viewportBottom
 
-            if fullyInsideViewport then
+            if intersectsViewport then
                 if getmetatable(child) == InlineRow then
                     h = LayoutInline(child, innerX, cy, innerW)
                 else
@@ -4238,7 +3752,6 @@ Register("RangeSlider", function(parent, opts)
         local trackH = Layout.SliderH
         local knobR  = Layout.SliderKnob
 
-
         local valueText = tostring(self.Low) .. " - " .. tostring(self.High) .. self.Suffix
         local valueW = TextWidth(valueText, Layout.TextSize, Fonts.Monospace)
         local badgeW = valueW + 14
@@ -4263,14 +3776,12 @@ Register("RangeSlider", function(parent, opts)
              th.Accent, Layout.TextSize, Fonts.Monospace,
              54, 1)
 
-
         local trackY = y + 28
         local trackX = x
         local trackW = w
 
         Rect(trackX, trackY - trackH / 2, trackW, trackH,
              th.Track, 51, trackH / 2, 0.8)
-
 
         local flo = fracOf(self.Low)
         local fhi = fracOf(self.High)
@@ -4280,7 +3791,6 @@ Register("RangeSlider", function(parent, opts)
             Rect(fillX, trackY - trackH / 2, fillW, trackH,
                  th.Accent, 52, trackH / 2, 0.85)
         end
-
 
         local hover = MouseIn(x, trackY - 10, w, 20) and self.Enabled
         TickAnim(self, hover, self._dragging ~= nil, State.Delta)
@@ -4463,7 +3973,6 @@ Register("Dropdown", function(parent, opts)
         local desiredW = textW + 34
         local fieldW = Clamp(desiredW, 70, maxFieldW)
 
-
         local fieldX = x + w - fieldW
 
         return {
@@ -4642,7 +4151,6 @@ Register("Dropdown", function(parent, opts)
         local fg = self:_BuildFieldGeometry(x, y, w, h)
         local fieldX, fieldY, fieldW = fg.X, fg.Y, fg.W
 
-
         if self._open and self._popupGeom then
             local pg = self._popupGeom
             if Input.Click and MouseIn(pg.X, pg.Y, pg.W, pg.H) then
@@ -4713,7 +4221,6 @@ Register("Keybind", function(parent, opts)
         local th = State.Theme
         local h = Layout.FieldH
 
-
         local titleW = 0
         if self.Title ~= "" then
             Text(self.Title, x, TextMidY(y, self.Height, Layout.TextSize),
@@ -4722,7 +4229,6 @@ Register("Keybind", function(parent, opts)
                  w - 80)
             titleW = TextWidth(self.Title, Layout.TextSize, Fonts.System)
         end
-
 
         local display = self._listening and "..." or KeyLabel.Format(self.Value)
         local chipW = math.max(38, TextWidth(display, Layout.TextSize, Fonts.Monospace) + 18)
@@ -4739,7 +4245,6 @@ Register("Keybind", function(parent, opts)
         local strokeColor = self._listening and th.Accent or th.Stroke
         local strokeA = self._listening and (0.6 + 0.4 * self._chipAnim) or (0.5 + 0.3 * self._hover)
         Stroke(chipX, chipY, chipW, h, strokeColor, 53, 6, strokeA)
-
 
         local dotColor = th.TextDim
         if self.Mode == "Toggle" then dotColor = th.AccentA
@@ -4811,7 +4316,6 @@ Register("ConfigTextbox", function(parent, opts)
         local h = Layout.FieldH + 2
         local fieldY = y + 2
 
-
         local fieldX = x
         local fieldW = math.max(70, w)
 
@@ -4827,7 +4331,6 @@ Register("ConfigTextbox", function(parent, opts)
         Stroke(fieldX, fieldY, fieldW, h, strokeColor, 53, 6, strokeA)
 
         local textX = fieldX + 10
-
 
         local val = self._focus.Value
         local display = (val == "" and not focused) and self.Placeholder or val
@@ -4852,7 +4355,6 @@ Register("ConfigTextbox", function(parent, opts)
             Text(visible, textX, fieldY + (h - Layout.TextSize) / 2,
                  color, Layout.TextSize, Fonts.System, 54, 1)
         end
-
 
         if focused then
             self._caretAnim = self._caretAnim - State.Delta * 1.6
@@ -4960,9 +4462,7 @@ Register("ColorPicker", function(parent, opts)
     self._open     = false
     self._openAnim = 0
 
-
     self._h, self._s, self._v = RGBToHSV(self.Value.R, self.Value.G, self.Value.B)
-
 
     self._svDrag   = false
     self._hueDrag  = false
@@ -5022,7 +4522,6 @@ Register("ColorPicker", function(parent, opts)
         local th = State.Theme
         local h = 16
 
-
         local titleW = 0
         if self.Title ~= "" then
             Text(self.Title, x, TextMidY(y, self.Height, Layout.TextSize),
@@ -5030,7 +4529,6 @@ Register("ColorPicker", function(parent, opts)
                  51, self.Enabled and 0.92 or 0.4,
                  w - 44)
         end
-
 
         local swatchW = 24
         local swatchX = x + w - swatchW
@@ -5041,7 +4539,6 @@ Register("ColorPicker", function(parent, opts)
 
         Rect(swatchX, swatchY, swatchW, h, self.Value, 52, 5, self._alpha)
         Stroke(swatchX, swatchY, swatchW, h, th.Text, 53, 5, 0.35 + 0.35 * self._hover)
-
 
         self._openAnim = Approach(self._openAnim, self._open and 1 or 0, 18, State.Delta)
         if math.abs(self._openAnim - (self._open and 1 or 0)) < 0.01 then
@@ -5058,23 +4555,19 @@ Register("ColorPicker", function(parent, opts)
         local a = self._openAnim
         local pph = 172
 
-
         Rect(px, py, pw, pph, th.Base, 61, 8, 0.98 * a)
         Stroke(px, py, pw, pph, th.Stroke, 62, 8, 0.55 * a)
 
         local padX = 10
         local padY = 10
 
-
         local svX = px + padX
         local svY = py + padY
         local svW = pw - padX * 2 - 14
         local svH = 88
 
-
         local hr, hg, hb = HSVToRGB(self._h, 1, 1)
         local hueColor = Color3.new(hr, hg, hb)
-
 
         GradientRect(svX, svY, svW, svH,
                      Color3.new(1, 1, 1), hueColor, 63, a, 64)
@@ -5086,19 +4579,16 @@ Register("ColorPicker", function(parent, opts)
                  Color3.new(0, 0, 0), 64, 0, t * a)
         end
 
-
         local cxp = svX + svW * self._s
         local cyp = svY + svH * (1 - self._v)
         Circle(cxp, cyp, 6, th.Text, 66, false, 1.8, 24, a)
         Circle(cxp, cyp, 6, Color3.new(0, 0, 0), 66, false, 2.6, 24, 0.5 * a)
         Circle(cxp, cyp, 3, self.Value, 67, true, 1, 20, a)
 
-
         local hueX = svX
         local hueY = svY + svH + 8
         local hueW = svW
         local hueH = 12
-
 
         local hues = 48
         for i = 1, hues do
@@ -5109,11 +4599,9 @@ Register("ColorPicker", function(parent, opts)
                  Color3.new(r, g, b), 63, 0, a)
         end
 
-
         local hueCx = hueX + hueW * self._h
         Rect(hueCx - 1.5, hueY - 2, 3, hueH + 4, th.Text, 66, 1.5, a)
         Rect(hueCx - 2.5, hueY - 2, 5, hueH + 4, Color3.new(0, 0, 0), 66, 2.5, 0.5 * a)
-
 
         local prevY = hueY + hueH + 8
         local prevH = 22
@@ -5142,7 +4630,6 @@ Register("ColorPicker", function(parent, opts)
 
         if hexFocused then
 
-
             for index = 1, #visible do
                 Text(string.sub(visible, index, index),
                      textX + (index - 1) * charWidth,
@@ -5166,20 +4653,16 @@ Register("ColorPicker", function(parent, opts)
         end
         self._hexX, self._hexY, self._hexW, self._hexH = hexX, hexY, hexW, hexH
 
-
         local alphaY = prevY + prevH + 6
         local alphaX = px + padX
         local alphaW = pw - padX * 2
         local alphaH = 6
 
-
         Rect(alphaX, alphaY, alphaW, alphaH, th.Track, 63, 2, 0.5 * a)
-
 
         local baseColor = Color3.new(1, 1, 1)
         GradientRect(alphaX, alphaY, alphaW * self._alpha, alphaH,
                      Color3.new(1, 1, 1), self.Value, 64, a, 16)
-
 
         local alphaCx = alphaX + alphaW * self._alpha
         Rect(alphaCx - 1.5, alphaY - 2, 3, alphaH + 4, th.Text, 66, 1.5, a)
@@ -5188,7 +4671,6 @@ Register("ColorPicker", function(parent, opts)
         Text(string.format("%d%%", math.floor(self._alpha * 100 + 0.5)),
              alphaX + alphaW - 30, alphaY + 8,
              th.TextDim, Layout.TinySize, Fonts.Monospace, 65, 0.8)
-
 
         self._panelX = px
         self._panelY = py
@@ -5205,7 +4687,6 @@ Register("ColorPicker", function(parent, opts)
         local swatchW = 24
         local swatchX = x + w - swatchW
         local swatchY = y + (self.Height - h) / 2
-
 
         if MouseIn(swatchX, swatchY, swatchW, h) and Input.Click then
             Input.Click = false
@@ -5226,7 +4707,6 @@ Register("ColorPicker", function(parent, opts)
         local px, py, pw = self._panelX, self._panelY, self._panelW
         if not px then return end
 
-
         if self._svX then
             local inside = MouseIn(self._svX, self._svY, self._svW, self._svH)
             if inside and Input.Click then
@@ -5241,7 +4721,6 @@ Register("ColorPicker", function(parent, opts)
             end
         end
 
-
         if self._hueX then
             local inside = MouseIn(self._hueX, self._hueY, self._hueW, self._hueH)
             if (inside and Input.Click) or self._hueDrag then
@@ -5255,7 +4734,6 @@ Register("ColorPicker", function(parent, opts)
                 end
             end
         end
-
 
         if self._hexX then
             local hexHover = MouseIn(self._hexX, self._hexY, self._hexW, self._hexH)
@@ -5286,7 +4764,6 @@ Register("ColorPicker", function(parent, opts)
             end
         end
 
-
         if self._alphaX then
             local inside = MouseIn(self._alphaX, self._alphaY, self._alphaW, self._alphaH + 6)
             if (inside and Input.Click) or self._alphaDrag then
@@ -5300,7 +4777,6 @@ Register("ColorPicker", function(parent, opts)
                 end
             end
         end
-
 
         if Input.Click and not MouseIn(px, py, pw, self._panelH or 200)
                         and not MouseIn(swatchX, swatchY, swatchW, h) then
@@ -5456,7 +4932,6 @@ local function BuildContentLayout(tab, viewportTop, halfW)
             i = i + 1
         else
 
-
             local y = math.max(leftY, rightY)
             local h
             if getmetatable(row) == InlineRow then
@@ -5496,27 +4971,28 @@ local function DrawContent()
     local tab = State.Tabs[State.ActiveIndex]
     if not tab then return end
 
-    local titleY = Geometry.ContentY + 6
-    local title = tab.Name
-    Text(title, Geometry.ContentX + Layout.ContentPadX, titleY,
-         State.Theme.Text, 16, Fonts.SystemBold, 60, 0.98,
-         Geometry.ContentW - Layout.ContentPadX * 2)
-
+    local titleY = Geometry.ContentY + 17
+    local headerH = ContentHeaderHeight(tab)
+    if Input.Click and not State.Drag and not State.Resize and MouseIn(Geometry.ContentX + Layout.ContentPadX, Geometry.ContentY + 4, Geometry.ContentW - Layout.ContentPadX * 2, headerH - 6) then
+        BeginDrag()
+        Input.Click = false
+    end
+    local headerWidth = Geometry.ContentW - Layout.ContentPadX * 2
+    local titleLines = #WrapHeaderLines(tab.Name, headerWidth, 24, Fonts.SystemBold)
+    HeaderText(tab.Name, Geometry.ContentX + Layout.ContentPadX, titleY,
+               headerWidth, 24, Fonts.SystemBold, State.Theme.Text, 60, 1, 4)
     if tab.Subtitle and tab.Subtitle ~= "" then
-        Text(tab.Subtitle,
-             Geometry.ContentX + Layout.ContentPadX, titleY + 20,
-             State.Theme.TextDim, 11, Fonts.System, 60, 0.7,
-             Geometry.ContentW - Layout.ContentPadX * 2)
+        HeaderText(tab.Subtitle, Geometry.ContentX + Layout.ContentPadX, titleY + titleLines * 28 + 4,
+                   headerWidth, 14, Fonts.System, State.Theme.TextDim, 60, 1, 4)
     end
 
     Line(
         Geometry.ContentX + Layout.ContentPadX,
-        titleY + (tab.Subtitle and 38 or 22),
+        Geometry.ContentY + headerH - 7,
         Geometry.ContentX + Geometry.ContentW - Layout.ContentPadX,
-        titleY + (tab.Subtitle and 38 or 22),
-        State.Theme.Divider, 60, 1, 0.50)
+        Geometry.ContentY + headerH - 7,
+        mix(State.Theme.Divider, State.Theme.Accent, 0.45), 60, 1.5, 0.88)
 
-    local headerH = (tab.Subtitle and 42 or 26)
     local viewportTop = Geometry.ContentY + headerH + Layout.ContentPadY
     local viewportH = Geometry.ContentH - headerH - Layout.ContentPadY * 2
     local halfW = math.floor((Geometry.InnerW - Layout.SectionColumnGap) / 2)
@@ -5537,14 +5013,14 @@ local function DrawContent()
     HandleWheel(tab)
 
     local clipTop = viewportTop
-    local clipBottom = Geometry.ContentY + Geometry.ContentH
+    local clipBottom = Geometry.ContentY + Geometry.ContentH - 12
     ActiveClipTop = clipTop
     ActiveClipBottom = clipBottom
     for _, item in ipairs(items) do
         local row = item.row
         local y = item.y - tab.Scroll
         local h = item.h
-        local revealThis = item.reveal <= StartupRevealCount(#items, State.Startup.RevealProgress)
+        local revealThis = item.reveal <= StartupRevealCount(#items)
 
         if revealThis then
             if item.kind == "section" then
@@ -5553,8 +5029,7 @@ local function DrawContent()
                 end
             else
 
-
-                if y >= clipTop and (y + h) <= clipBottom then
+                if y + h >= clipTop and y <= clipBottom then
                     DrawRow(row, item.x, y, item.w)
                 end
             end
@@ -5579,7 +5054,6 @@ local function UpdateDropdownScrollbarInput()
         dropdown._scrollDrag = false
         return false
     end
-
 
     local trackX, trackY = pg.TrackX, pg.TrackY
     local trackW, trackH = pg.TrackW, pg.TrackH
@@ -5640,7 +5114,7 @@ local function InputContent()
         return
     end
 
-    local headerH = (tab.Subtitle and 42 or 26)
+    local headerH = ContentHeaderHeight(tab)
     local viewportTop = Geometry.ContentY + headerH + Layout.ContentPadY
     local halfW = math.floor((Geometry.InnerW - Layout.SectionColumnGap) / 2)
     local items = BuildContentLayout(tab, viewportTop, halfW)
@@ -5714,7 +5188,6 @@ local function SwitchTheme(index)
         State.ThemeIndex = index
         return
     end
-
 
     local from = {}
     for k, v in pairs(State.Theme) do
@@ -5800,21 +5273,17 @@ end
 
 local function Notify(opts)
     opts = opts or {}
+    local logoSource = opts.Logo or opts.logo
     local entry = setmetatable({
-        Title      = tostring(opts.Title or opts.title or "Notice"),
-        Content    = tostring(opts.Content or opts.content or ""),
-        Type       = string.lower(tostring(opts.Type or opts.type or "info")),
-        Duration   = math.max(0.5, tonumber(opts.Duration or opts.duration) or 4),
-
-        Fade       = 0,
-        Slide      = 0,
-        Life       = 0,
+        Title = tostring(opts.Title or opts.title or "Notice"),
+        Content = tostring(opts.Content or opts.content or ""),
+        Type = string.lower(tostring(opts.Type or opts.type or "info")),
+        Duration = math.max(0.5, tonumber(opts.Duration or opts.duration) or 4),
+        Fade = 0, Slide = 0, Life = 0,
         TargetLife = math.max(0.5, tonumber(opts.Duration or opts.duration) or 4),
-        Done       = false,
-
-        Logo       = State.LogoSource and LoadPicture(State.LogoSource, "notification_logo") or nil,
+        Done = false,
+        Logo = logoSource and LoadPicture(logoSource, "notification_logo") or nil,
     }, Notification)
-
     State.Notifications[#State.Notifications + 1] = entry
     return entry
 end
@@ -5852,6 +5321,7 @@ local function TickNotifications(dt)
 
         if n.Done then
             HidePicture(n.Logo)
+            if n.Logo and n.Logo.Image then pcall(function() n.Logo.Image:Remove() end) end
             table.remove(list, i)
         else
             i = i + 1
@@ -5859,88 +5329,90 @@ local function TickNotifications(dt)
     end
 end
 
+local function NotificationLines(value, width, size, font)
+    local lines = {}
+    local charW = size * (FontMetrics[font] or 0.5)
+    local limit = math.max(1, math.floor(width / charW))
+    for paragraph in (tostring(value) .. "\\n"):gmatch("(.-)\\n") do
+        local current = ""
+        for word in paragraph:gmatch("%S+") do
+            while #word > limit do
+                if current ~= "" then lines[#lines + 1] = current; current = "" end
+                lines[#lines + 1] = word:sub(1, limit)
+                word = word:sub(limit + 1)
+            end
+            if word ~= "" then
+                if current == "" then current = word
+                elseif #current + #word + 1 <= limit then current = current .. " " .. word
+                else lines[#lines + 1] = current; current = word end
+            end
+        end
+        lines[#lines + 1] = current
+    end
+    return lines
+end
+
 local function DrawNotifications()
     local th = State.Theme
     local vp = Camera.ViewportSize
     local pos = NormalizeNotificationPosition(State.NotificationPosition)
-
-
-    local notW = 326
-    local notH = 78
-    local gap = 10
-    local marginX = 18
-    local marginY = 18
-
-    local fromTop = (pos == "top_left" or pos == "top_right")
-    local fromLeft = (pos == "top_left" or pos == "bottom_left")
-
-
-    for i, n in ipairs(State.Notifications) do
+    local notW, gap = 350, 10
+    local marginX, marginY, cut = 18, 18, 19
+    local fromTop = pos == "top_left" or pos == "top_right"
+    local fromLeft = pos == "top_left" or pos == "bottom_left"
+    local stackOffset = 0
+    for _, n in ipairs(State.Notifications) do
+        local hasLogo = n.Logo ~= nil
+        local textW = hasLogo and (notW - 139) or (notW - 72)
+        local titleLines = NotificationLines(n.Title, textW, 15, Fonts.SystemBold)
+        local contentLines = n.Content ~= "" and NotificationLines(n.Content, textW, 11, Fonts.System) or {}
+        local titleH, contentH = #titleLines * 18, #contentLines * 15
+        local notH = math.max(90, 18 + titleH + (contentH > 0 and 7 + contentH or 0) + 18)
         local a = n.Fade
         if a > 0.005 then
-            local stackOffset = (i - 1) * (notH + gap)
-            local ny
-            if fromTop then
-                ny = marginY + stackOffset
-            else
-                ny = vp.Y - marginY - notH - stackOffset
-            end
-
+            local ny = fromTop and (marginY + stackOffset) or (vp.Y - marginY - notH - stackOffset)
             local baseX = fromLeft and marginX or (vp.X - marginX - notW)
-            local slideDir = fromLeft and -1 or 1
-            local nx = baseX + slideDir * n.Slide
-
+            local nx = baseX + (fromLeft and -1 or 1) * n.Slide
             local colors = NoteColors[n.Type] or NoteColors.info
             local accent = th[colors.accent] or th.Accent
-            local typeLabel = colors.label or "INFO"
-
-            Rect(nx, ny, notW, notH,
-                 rgb(13, 16, 23), 371, 12, 0.97 * a)
-            Stroke(nx, ny, notW, notH,
-                   th.Stroke, 372, 12, 0.72 * a)
-
-
-            local logoSize = 38
-            local logoX = nx + 15
-            local logoY = ny + (notH - logoSize) / 2
-            local drewLogo = DrawPicture(n.Logo, logoX, logoY,
-                                         logoSize, logoSize,
-                                         Layer(376), a, 8)
-            if not drewLogo then
-
-                Circle(logoX + logoSize / 2, logoY + logoSize / 2,
-                       4, accent, 376, true, 1, 14, 0.85 * a)
+            local bg = rgb(23, 23, 34)
+            local x2, y2 = nx + notW, ny + notH
+            local fillAlpha = 0.97 * a
+            Rect(nx + cut, ny, notW - cut, cut, bg, 371, 0, fillAlpha)
+            Rect(nx, ny + cut, notW, notH - 2 * cut, bg, 371, 0, fillAlpha)
+            Rect(nx, y2 - cut, notW - cut, cut, bg, 371, 0, fillAlpha)
+            Triangle(nx, ny + cut, nx + cut, ny, nx + cut, ny + cut, bg, 371, fillAlpha)
+            Triangle(x2 - cut, y2 - cut, x2, y2 - cut, x2 - cut, y2, bg, 371, fillAlpha)
+            local outline = th.Accent
+            Line(nx + cut, ny, x2, ny, outline, 373, 1.5, a)
+            Line(x2, ny, x2, y2 - cut, outline, 373, 1.5, a)
+            Line(x2, y2 - cut, x2 - cut, y2, outline, 373, 1.5, a)
+            Line(x2 - cut, y2, nx, y2, outline, 373, 1.5, a)
+            Line(nx, y2, nx, ny + cut, outline, 373, 1.5, a)
+            Line(nx, ny + cut, nx + cut, ny, outline, 373, 1.5, a)
+            local cx, cy = nx + 30, ny + 35
+            Circle(cx, cy, 13, mix(bg, accent, 0.17), 374, true, 1, 28, a)
+            DrawIconByName(colors.icon, cx - 9, cy - 9, 18, accent, 376, a)
+            local textX = nx + 53
+            local titleY = ny + 18
+            for i, line in ipairs(titleLines) do
+                Text(line, textX, titleY + (i - 1) * 18, th.Text, 15, Fonts.SystemBold, 378, a)
             end
-
-            local textX = logoX + logoSize + 12
-            local rightPad = 14
-            local textW = notW - (textX - nx) - rightPad
-
-
-            Text(typeLabel, textX, ny + 10,
-                 accent, 8, Fonts.SystemBold, 377, 0.90 * a, textW)
-
-            Text(n.Title, textX, ny + 24,
-                 th.Text, 14, Fonts.SystemBold, 378, 0.99 * a, textW)
-
-            if n.Content ~= "" then
-                Text(n.Content, textX, ny + 45,
-                     th.TextDim, 10, Fonts.System, 378, 0.84 * a, textW)
+            if #contentLines > 0 then
+                local contentY = titleY + titleH + 7
+                for i, line in ipairs(contentLines) do
+                    Text(line, textX, contentY + (i - 1) * 15, th.TextDim, 11, Fonts.System, 378, 0.90 * a)
+                end
             end
-
-
-            local progressX = nx + 14
-            local progressY = ny + notH - 6
-            local progressW = notW - 28
-            Rect(progressX, progressY, progressW, 2,
-                 th.Track, 379, 1, 0.60 * a)
-
-            local remain = Clamp(1 - (n.Life / n.TargetLife), 0, 1)
-            if remain > 0 then
-                Rect(progressX, progressY, progressW * remain, 2,
-                     accent, 380, 1, 0.95 * a)
+            if hasLogo then
+                local dividerX = x2 - 94
+                Line(dividerX, ny + 16, dividerX, y2 - 16, th.Divider, 375, 1, 0.85 * a)
+                local logoSize = 52
+                local logoX, logoY = x2 - 73, ny + (notH - logoSize) / 2
+                DrawPicture(n.Logo, logoX, logoY, logoSize, logoSize, Layer(377), a, 6)
             end
         end
+        stackOffset = stackOffset + notH + gap
     end
 end
 
@@ -5995,14 +5467,12 @@ local function DrawTooltip()
     local tx = Tooltip.X + 14
     local ty = Tooltip.Y + 18
 
-
     if tx + boxW > vp.X - 8 then
         tx = Tooltip.X - boxW - 8
     end
     if ty + boxH > vp.Y - 8 then
         ty = Tooltip.Y - boxH - 8
     end
-
 
     Rect(tx + 2, ty + 3, boxW, boxH, Color3.new(0, 0, 0), 300, 6, 0.28 * a)
     Rect(tx, ty, boxW, boxH, th.Base, 301, 6, 0.98 * a)
@@ -6344,8 +5814,8 @@ local function DrawHUDBoxes()
                 Input.Click = false
             end
 
-            Rect(box.X, box.Y, boxW, totalH, rgb(13, 16, 23), 351, 9, 0.96)
-            Stroke(box.X, box.Y, boxW, totalH, th.Accent, 352, 9, 0.88)
+            CutPanel(box.X, box.Y, boxW, totalH, 10, rgb(13, 16, 23), 351, 0.96)
+            CutOutline(box.X, box.Y, boxW, totalH, 10, th.Accent, 352, 0.88, 1)
 
             local measuredHeaderW = TextWidth(header, headerSize, headerFont)
             Text(header,
@@ -6434,18 +5904,9 @@ local LastHotkeyState = false
 
 local function Render()
 
-
-    if not State.Startup.Active and State.Frame == 0 then
-        ResetPool()
-        HideUnused()
-        return
-    end
-
-
     ReadInput()
     ReadKeys(State, Focus, Capture)
     State.TickKeybindCallbacks()
-
 
     local now = os.clock()
     State.Delta = math.min(now - State.LastTick, 1 / 20)
@@ -6453,13 +5914,11 @@ local function Render()
     State.Frame = State.Frame + 1
     TickPerformanceOverlay(State.Delta)
 
-
     UpdateCapture()
-
 
     TickFocus()
 
-    if not State.Startup.Active then
+    if true then
         local key = string.lower(State.MenuKey)
         local hk = Keys[string.upper(key)]
         if hk and hk.Click then
@@ -6468,80 +5927,17 @@ local function Render()
         end
     end
 
-
-    if not State.Startup.Active then
+    if true then
         EnsureWindowFitsTabs()
     end
     TickVisibility(State.Delta)
     TickTheme(State.Delta)
-    TickStartup(State.Delta)
-    if not State.Startup.Active then
+    if State.Entrance.Active then
+        State.Entrance.Time = math.min(State.Entrance.Duration, State.Entrance.Time + State.Delta)
+        if State.Entrance.Time >= State.Entrance.Duration then State.Entrance.Active = false end
+    end
+    if true then
         State.OverlayRevealTime = (State.OverlayRevealTime or 0) + State.Delta
-    end
-
-    local startupIsLoading = State.Startup.Active and State.Startup.Phase == "loading"
-    local startupIsShrink = State.Startup.Active and State.Startup.Phase == "shrink"
-    local startupIsPop = State.Startup.Active and State.Startup.Phase == "pop"
-    local startupIsReveal = State.Startup.Active and State.Startup.Phase == "reveal"
-
-    if startupIsLoading then
-        HidePicture(State.BackgroundImage)
-
-        State.W = State.Startup.StartW
-        State.H = State.Startup.StartH
-        State.X = State.Startup.StartX
-        State.Y = State.Startup.StartY
-
-        Geometry.Recalculate()
-        ResetPool()
-        DrawStartupFrame()
-        State.ApplyInputState(false)
-        HideUnused()
-        return
-    end
-
-    if startupIsShrink then
-        HidePicture(State.Logo)
-        HidePicture(State.BackgroundImage)
-        Geometry.Recalculate()
-        ResetPool()
-        HidePicture(State.Startup.Image)
-        HidePicture(State.Startup.BackgroundImage)
-        local radius = math.min(18, math.max(8, State.H * 0.22))
-        GlassSurface(State.X, State.Y, State.W, State.H, rgb(11, 13, 20), 10, radius)
-        Stroke(State.X, State.Y, State.W, State.H, State.Theme.Stroke, 20, radius, 0.62)
-
-        local collapseT = math.min(State.Startup.Time / State.Startup.ShrinkDuration, 1)
-        local glowA = math.max(0, 1 - collapseT * 0.55)
-        local cx = State.X + State.W / 2
-        local cy = State.Y + State.H / 2
-        Circle(cx, cy, math.max(3, math.min(State.W, State.H) * 0.18),
-               State.Theme.Accent, 29, true, 1, 28, 0.10 * glowA)
-        Circle(cx, cy, 2, State.Theme.Text, 30, true, 1, 16, 0.62 * glowA)
-        State.ApplyInputState(false)
-        HideUnused()
-        return
-    end
-
-    if startupIsPop then
-        HidePicture(State.Logo)
-        Geometry.Recalculate()
-        ResetPool()
-        DrawFrame(true)
-
-        local t = math.min(State.Startup.Time / State.Startup.PopDuration, 1)
-        local flash = (1 - t) * (1 - t)
-        if flash > 0.002 then
-            local cx = State.X + State.W / 2
-            local cy = State.Y + State.H / 2
-            Circle(cx, cy, 4 + 12 * t, State.Theme.Accent,
-                   45, true, 1, 28, 0.10 * flash)
-            Circle(cx, cy, 2, State.Theme.Text,
-                   46, true, 1, 16, 0.42 * flash)
-        end
-        State.ApplyInputState(false)
-        HideUnused()
-        return
     end
 
     if State.Visible < 0.005 then
@@ -6565,13 +5961,11 @@ local function Render()
 
     Geometry.Recalculate()
 
-
     TickRailOpen(State.Delta)
     TickDrag(State.Delta)
     TickResize()
 
     Geometry.Recalculate()
-
 
     ResetPool()
     Tooltip.Hovered = false
@@ -6582,26 +5976,27 @@ local function Render()
     DrawPerformanceOverlay()
     DrawHUDBoxes()
 
-
+    local entranceAlpha = 1
+    if State.Entrance.Active then
+        local t = math.min(1, State.Entrance.Time / State.Entrance.Duration)
+        entranceAlpha = t * t * (3 - 2 * t)
+    end
+    FrameAlpha = entranceAlpha * State.Visible
     DrawFrame()
-    DrawTitleBar(State.WindowTitle, State.WindowSubtitle)
     DrawTabRail()
     DrawContent()
+    FrameAlpha = State.Visible
     TickTooltip(State.Delta)
 
-    if not startupIsReveal then
-        InputContent()
-    end
+    if not State.Entrance.Active then InputContent() end
 
     TickNotifications(State.Delta)
     DrawNotifications()
     DrawTooltip()
 
-
     DrawResizeHandle()
 
     State.ApplyInputState(false)
-
 
     HideUnused()
 end
@@ -6768,8 +6163,8 @@ DrawKeybindOverlay = function()
     local previousAlpha = FrameAlpha
     FrameAlpha = KeybindHUD.Reveal or 0
 
-    Rect(x, y, w, h, rgb(13, 16, 23), 331, 9, 0.96)
-    Stroke(x, y, w, h, th.Accent, 332, 9, 0.88)
+    CutPanel(x, y, w, h, 10, rgb(13, 16, 23), 331, 0.96)
+    CutOutline(x, y, w, h, 10, th.Accent, 332, 0.88, 1)
 
     local header = "HOTKEYS"
     local headerSize = 12
@@ -6922,8 +6317,8 @@ DrawPerformanceOverlay = function()
     local previousAlpha = FrameAlpha
     FrameAlpha = PerformanceHUD.Reveal or 0
 
-    Rect(x, y, w, h, rgb(13, 16, 23), 341, 9, 0.96)
-    Stroke(x, y, w, h, th.Accent, 342, 9, 0.88)
+    CutPanel(x, y, w, h, 10, rgb(13, 16, 23), 341, 0.96)
+    CutOutline(x, y, w, h, 10, th.Accent, 342, 0.88, 1)
 
     local header = "PERFORMANCE"
     local headerSize = 12
@@ -6974,10 +6369,22 @@ local function EnsureGlobalSettingsTab(library)
         end,
     })
     Controls.Toggle(behavior, {
-        Title = "Keep sidebar open",
-        Description = "Pins the sidebar in its expanded state.",
-        Default = State.RailPinned,
-        Callback = function(v) State.RailPinned = v end,
+        Title = "Performance overlay",
+        Description = "Show the performance statistics overlay.",
+        Default = State.Settings.PerformanceOverlay ~= false,
+        ConfigKey = "settings.performanceOverlay",
+        Callback = function(enabled)
+            State.Settings.PerformanceOverlay = enabled
+        end,
+    })
+    Controls.Toggle(behavior, {
+        Title = "Hotkey overlay",
+        Description = "Show the active hotkeys overlay.",
+        Default = State.Settings.KeybindOverlay ~= false,
+        ConfigKey = "settings.keybindOverlay",
+        Callback = function(enabled)
+            State.Settings.KeybindOverlay = enabled
+        end,
     })
     Controls.Button(behavior, {
         Title = "Reset overlay position",
@@ -7043,7 +6450,6 @@ local function EnsureGlobalSettingsTab(library)
         Default = State.Settings.ToggleStyle,
         Callback = function(v) State.Settings.ToggleStyle = v end,
     })
-
 
     local configs = Section.new(tab, "Configs", "Save and manage interface configurations.", {})
 
@@ -7125,7 +6531,6 @@ local function EnsureGlobalSettingsTab(library)
             local name = configNameBox:GetValue()
             name = string.gsub(tostring(name or "default"), "[^%w_%-]", "_")
             if name == "" then name = "default" end
-
 
             configNameBox:SetValue(name, true)
             State.Settings.ConfigName = name
@@ -7234,7 +6639,7 @@ function Library:CreateWindow(opts)
                     end
                 end
             end
-            
+
             if not loaded then
                 local ok, thumbnail = pcall(function()
                     return Players:GetUserThumbnailAsync(
@@ -7262,42 +6667,43 @@ function Library:CreateWindow(opts)
     if customGameName ~= nil then
         State.GameName = tostring(customGameName)
     else
-        local resolvedName = nil
 
-        if tonumber(game.GameId) and tonumber(game.GameId) > 0 then
-            local ok, body = pcall(function()
-                return game:HttpGet(
-                    "https://games.roblox.com/v1/games?universeIds=" .. tostring(game.GameId)
-                )
-            end)
-
-            if ok and type(body) == "string" and body ~= "" then
-                local decodedOk, decoded = pcall(function()
-                    return game:GetService("HttpService"):JSONDecode(body)
-                end)
-                if decodedOk and type(decoded) == "table"
-                   and type(decoded.data) == "table"
-                   and type(decoded.data[1]) == "table"
-                   and decoded.data[1].name then
-                    resolvedName = tostring(decoded.data[1].name)
+        State.GameName = State.CachedGameName or ("PLACE " .. tostring(game.PlaceId))
+        if not State.GameNameLoading and not State.CachedGameName then
+            State.GameNameLoading = true
+            task.spawn(function()
+                local resolvedName
+                if tonumber(game.GameId) and tonumber(game.GameId) > 0 then
+                    local ok, body = pcall(function()
+                        return game:HttpGet("https://games.roblox.com/v1/games?universeIds=" .. tostring(game.GameId))
+                    end)
+                    if ok and type(body) == "string" and body ~= "" then
+                        local decodedOk, decoded = pcall(function()
+                            return game:GetService("HttpService"):JSONDecode(body)
+                        end)
+                        if decodedOk and type(decoded) == "table" and type(decoded.data) == "table"
+                           and type(decoded.data[1]) == "table" and decoded.data[1].name then
+                            resolvedName = tostring(decoded.data[1].name)
+                        end
+                    end
                 end
-            end
-        end
-
-        if not resolvedName then
-            local ok, info = pcall(function()
-                return game:GetService("MarketplaceService"):GetProductInfo(
-                    game.PlaceId,
-                    Enum.InfoType.Asset
-                )
+                if not resolvedName then
+                    local ok, info = pcall(function()
+                        return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId, Enum.InfoType.Asset)
+                    end)
+                    if ok and type(info) == "table" and info.Name then resolvedName = tostring(info.Name) end
+                end
+                if resolvedName then
+                    State.CachedGameName = resolvedName
+                    if State.Alive and State.ShowGameName and not State.CustomGameName then
+                        State.GameName = resolvedName
+                    end
+                end
+                State.GameNameLoading = false
             end)
-            if ok and type(info) == "table" and info.Name then
-                resolvedName = tostring(info.Name)
-            end
         end
-
-        State.GameName = resolvedName or ("PLACE " .. tostring(game.PlaceId))
     end
+    State.CustomGameName = customGameName ~= nil
 
     local logoSource = opts.Logo
     if logoSource == nil then logoSource = opts.logo end
@@ -7322,15 +6728,6 @@ function Library:CreateWindow(opts)
 
     if opts.MenuKey or opts.menuKey then State.MenuKey = string.lower(tostring(opts.MenuKey or opts.menuKey)) end
 
-    local islandExpanded = opts.IslandExpanded
-    if islandExpanded == nil then islandExpanded = opts.islandExpanded end
-    if islandExpanded == nil then islandExpanded = opts.ExpandedIsland end
-    if islandExpanded == nil then islandExpanded = opts.expandedIsland end
-    if islandExpanded ~= nil then
-        State.Island.Open = islandExpanded == true
-        State.Island.StartExpanded = islandExpanded == true
-    end
-
     local notifPos = opts.NotifPos or opts.notifpos or opts.NotificationPosition or opts.notificationPosition
     if notifPos ~= nil then
         State.NotificationPosition = NormalizeNotificationPosition(notifPos)
@@ -7354,41 +6751,13 @@ function Library:CreateWindow(opts)
 
     EnsureGlobalSettingsTab(self)
 
-    local splashOption = opts.Splash
-    if splashOption == nil then splashOption = opts.splash end
-
-    if splashOption == false then
-        StartStartup({ Enabled = false })
-    else
-        local splash = type(splashOption) == "table" and splashOption or {}
-        local textFadeValue = splash.TextFade
-        if textFadeValue == nil then textFadeValue = splash.textFade end
-
-
-        if textFadeValue == nil then textFadeValue = splash.Shimmer end
-        if textFadeValue == nil then textFadeValue = splash.shimmer end
-        if textFadeValue == nil then textFadeValue = true end
-
-        StartStartup({
-            Enabled = true,
-            Duration = splash.Duration or splash.duration
-                or opts.StartupDuration or opts.startupDuration
-                or opts.Duration or opts.duration or 5.0,
-            Size = splash.Size or splash.size,
-            Image = splash.Image or splash.image,
-            Title = splash.Title or splash.title,
-            LogoSize = splash.LogoSize or splash.logoSize or splash.ImageSize or splash.imageSize or 56,
-            ShowLogo = splash.ShowLogo ~= false and splash.showLogo ~= false,
-            ShowGameName = splash.ShowGameName ~= false and splash.showGameName ~= false,
-            Border = splash.Border ~= false and splash.border ~= false,
-            AccentBar = splash.AccentBar ~= false and splash.accentBar ~= false,
-            FooterAccent = splash.FooterAccent ~= false and splash.footerAccent ~= false,
-            CornerRadius = splash.CornerRadius or splash.cornerRadius or 14,
-            TextFade = textFadeValue,
-            BackgroundImage = splash.BackgroundImage or splash.backgroundImage,
-            BackgroundOpacity = splash.BackgroundOpacity or splash.backgroundOpacity or 0.22,
-        })
-    end
+    local vp = Camera.ViewportSize
+    State.X = math.floor((vp.X - State.W) / 2)
+    State.Y = math.floor((vp.Y - State.H) / 2)
+    State.Entrance.Time = 0
+    State.Entrance.Active = not State.NoAnim
+    State.Visible = 1
+    State.Open = true
     State.ApplyInputState(true)
     return self
 end
@@ -7397,7 +6766,6 @@ Library.Themes         = Themes
 Library.Layout         = Layout
 Library.State          = State
 Library.Tabs           = {}
-
 
 function Library:AddTab(opts)
     opts = opts or {}
@@ -7443,7 +6811,6 @@ function Library:SelectTab(name)
     SetActiveTabByName(name)
 end
 
-
 function Library:ResetDefaults()
     local function resetControl(ctrl)
         if not ctrl or not ctrl.SetValue then return end
@@ -7475,7 +6842,6 @@ function Library:ResetDefaults()
     end
     return self
 end
-
 
 function Library:SaveConfig(name)
     name = string.gsub(tostring(name or "default"), "[^%w_%-]", "_")
@@ -7581,7 +6947,8 @@ function Library:LoadConfig(name)
     if st.BackgroundEffects ~= nil then State.Settings.BackgroundEffects = st.BackgroundEffects end
     if st.BorderComet ~= nil then State.Settings.BorderComet = st.BorderComet end
     if st.ToggleStyle ~= nil then State.Settings.ToggleStyle = st.ToggleStyle end
-    if st.RailPinned ~= nil then State.RailPinned = st.RailPinned end
+    State.RailPinned = true
+    State.RailOpen = 1
     if st.NoAnim ~= nil then State.NoAnim = st.NoAnim end
 
     local values = data.controls or {}
@@ -7643,11 +7010,9 @@ function Library:DeleteConfig(name)
     return ok, ok and path or err
 end
 
-
 function Library:Notify(opts)
     return Notify(opts)
 end
-
 
 function Library:SetTheme(name)
     return SetThemeByName(name)
@@ -7659,80 +7024,6 @@ end
 
 function Library:SetBackground(effect)
     State.Background = NormalizeBackground(effect)
-end
-
-function Library:AddIslandAction(opts)
-    opts = opts or {}
-    if #State.Island.Actions >= State.Island.MaxActions then
-        return nil
-    end
-
-    local side = string.lower(tostring(opts.Side or opts.side or "right"))
-    if side ~= "left" and side ~= "right" then side = "right" end
-
-    local sideCount = 0
-    for _, action in ipairs(State.Island.Actions) do
-        if action.Side == side then sideCount = sideCount + 1 end
-    end
-    if sideCount >= 3 then return nil end
-
-    local action = {
-        Id = tostring(opts.Id or opts.id or ("island_" .. tostring(#State.Island.Actions + 1))),
-        Icon = tostring(opts.Icon or opts.icon or "sparkles"),
-        Side = side,
-        Active = opts.Active ~= nil and opts.Active or opts.active,
-        GetActive = opts.GetActive or opts.getActive,
-        Callback = opts.Callback or opts.callback,
-    }
-
-    table.insert(State.Island.Actions, action)
-    if State.Island.StartExpanded then
-        State.Island.Open = true
-    end
-    return action
-end
-
-function Library:RemoveIslandAction(id)
-    id = tostring(id)
-    for i = #State.Island.Actions, 1, -1 do
-        if State.Island.Actions[i].Id == id then
-            local action = State.Island.Actions[i]
-            if action._IslandImage then
-                pcall(function() action._IslandImage:Remove() end)
-                action._IslandImage = nil
-                action._IslandImageData = nil
-            end
-            table.remove(State.Island.Actions, i)
-            return true
-        end
-    end
-    return false
-end
-
-function Library:ClearIslandActions()
-    for _, action in ipairs(State.Island.Actions) do
-        if action._IslandImage then
-            pcall(function() action._IslandImage:Remove() end)
-            action._IslandImage = nil
-            action._IslandImageData = nil
-        end
-    end
-    State.Island.Actions = {}
-    State.Island.Open = false
-end
-
-function Library:SetIslandOpen(open)
-    if #State.Island.Actions == 0 then
-        State.Island.Open = false
-    else
-        State.Island.Open = open == true
-    end
-end
-
-function Library:ToggleIsland()
-    if #State.Island.Actions > 0 then
-        State.Island.Open = not State.Island.Open
-    end
 end
 
 function Library:OpenKeybinds()
@@ -7751,16 +7042,13 @@ function Library:ClosePerformance()
     State.Settings.PerformanceOverlay = false
 end
 
-
 function Library:SetKeybind(key)
     State.MenuKey = string.lower(tostring(key))
 end
 
-
 function Library:Toggle()   ToggleUI() end
 function Library:Show()     State.Open = true end
 function Library:Hide()     State.Open = false; ClearFocus() end
-function Library:StartStartup(opts) StartStartup(opts) end
 
 function Library:IsAlive() return State.Alive end
 
@@ -7787,22 +7075,13 @@ function Library:Destroy()
     ClearFocus()
     State.InputSent = true
     if type(setrobloxinput) == "function" then setrobloxinput(true) end
-    for _, action in ipairs(State.Island.Actions) do
-        if action._IslandImage then
-            pcall(function() action._IslandImage:Remove() end)
-            action._IslandImage = nil
-            action._IslandImageData = nil
-        end
-    end
     ClearPool()
     CancelCapture()
 end
 
-
 function Library:CreateOverlay(opts)
     return HUDBox.new(opts)
 end
-
 
 function Library:CreateBox(opts)
     return HUDBox.new(opts)
@@ -7810,7 +7089,6 @@ end
 
 Library.IsBindHeld    = IsBindHeld
 Library.IsBindClicked = IsBindClicked
-
 
 do
     local function AttachControl(parentType, methodName, ctorName)
@@ -7838,11 +7116,9 @@ do
         AttachControl(parentType, "AddColorPicker", "ColorPicker")
     end
 
-
     function Tab:AddSection(title, description, opts)
         return Section.new(self, title, description, opts)
     end
-
 
     function Tab:AddInline(weights)
         return InlineRow.new(self, weights)
@@ -7851,7 +7127,6 @@ do
     function Section:AddInline(weights)
         return InlineRow.new(self, weights)
     end
-
 
     function InlineRow:AddRow(builder)
         self.Cells[#self.Cells + 1] = builder
@@ -7888,7 +7163,6 @@ do
         return AddAccessory(self, "ColorPicker", opts)
     end
 
-
     for _, ctrlName in ipairs({
         "Label", "Divider", "Toggle", "Radio", "Segmented", "Progress", "Status",
         "Slider", "RangeSlider", "Dropdown", "Keybind", "ColorPicker", "Button"
@@ -7908,30 +7182,6 @@ do
     State.X = math.floor((vp.X - State.W) / 2)
     State.Y = math.floor((vp.Y - State.H) / 2)
 end
-
-Library:AddIslandAction({
-    Id = "hotkeys",
-    Icon = "keyboard",
-    Side = "right",
-    GetActive = function()
-        return State.Settings.KeybindOverlay
-    end,
-    Callback = function()
-        State.Settings.KeybindOverlay = not State.Settings.KeybindOverlay
-    end,
-})
-
-Library:AddIslandAction({
-    Id = "performance",
-    Icon = "performance",
-    Side = "left",
-    GetActive = function()
-        return State.Settings.PerformanceOverlay
-    end,
-    Callback = function()
-        State.Settings.PerformanceOverlay = not State.Settings.PerformanceOverlay
-    end,
-})
 
 if RunService and RunService.RenderStepped then
     State.RenderConnection = RunService.RenderStepped:Connect(function()

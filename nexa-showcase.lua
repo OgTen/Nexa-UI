@@ -94,7 +94,7 @@ local Window = Nexa:CreateWindow({
     Height = 610,
     Theme = "Midnight",
     Background = "none",
-    MenuKey = "RightShift",
+    MenuKey = "p",
     Opacity = 100,
 })
 

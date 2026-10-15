@@ -1805,8 +1805,18 @@ local function HandleWheel(tab)
     if not MouseIn(Geometry.ContentX, Geometry.ContentY,
                    Geometry.ContentW, Geometry.ContentH) then return end
 
-    local popup = State.OpenDropdownWheelRect
-    if popup and MouseIn(popup.X, popup.Y, popup.W, popup.H) then
+    local dropdown = State.ActiveDropdown
+    local popup = dropdown and dropdown._popupGeom
+    if dropdown and dropdown._open and popup
+       and MouseIn(popup.X, popup.Y, popup.W, popup.H) then
+        local wheel = Input.Wheel or 0
+        if wheel ~= 0 then
+            dropdown._listScrollTo = Clamp(
+                (dropdown._listScrollTo or 0) - wheel * 2,
+                0, popup.MaxScroll or 0
+            )
+            Input.Wheel = 0
+        end
         return
     end
 
@@ -4106,8 +4116,10 @@ Register("Dropdown", function(parent, opts)
         local optionPadX = 8
         local labelMaxW = math.max(1, pg.W - optionPadX - 5 - scrollbarReserve)
 
+        local firstRow = math.floor(Clamp(self._listScroll, 0, maxScroll) + 0.5)
+        if self._listScrollTo >= maxScroll - 0.01 then firstRow = maxScroll end
         for i = 1, pg.Visible do
-            local idx = i + math.floor(self._listScroll)
+            local idx = i + firstRow
             local option = self.Options[idx]
             if option == nil then break end
 
@@ -4158,7 +4170,9 @@ Register("Dropdown", function(parent, opts)
                 local row = math.floor(localY / pg.RowStride) + 1
                 local withinRow = localY - (row - 1) * pg.RowStride
                 if row >= 1 and row <= pg.Visible and withinRow >= 0 and withinRow < pg.RowH then
-                    local idx = row + math.floor(self._listScroll)
+                    local firstRow = math.floor(Clamp(self._listScroll, 0, pg.MaxScroll) + 0.5)
+                    if self._listScrollTo >= pg.MaxScroll - 0.01 then firstRow = pg.MaxScroll end
+                    local idx = row + firstRow
                     local option = self.Options[idx]
                     local scrollbarZone = pg.MaxScroll > 0 and
                         MouseIn(pg.TrackX - 3, pg.TrackY, pg.TrackW + 6, pg.TrackH)

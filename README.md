@@ -11,7 +11,7 @@ local Nexa = loadstring(game:HttpGet("https://raw.githubusercontent.com/OgTen/Ne
 Nexa:CreateWindow({
     Title = "Nexa",
     Subtitle = "Example interface",
-    Logo = "www.linktoyourimage.png",
+    Logo = "https://linktoyourimage.png",
     Theme = "Midnight",
     Width = 760,
     Height = 520,

@@ -727,6 +727,7 @@ local function Text(text, x, y, color, size, font, z, alpha, room, center)
     if room then text = TrimText(text, room, size, font) end
     if text == "" then DrawOrder = DrawOrder + 1; return end
 
+    x, y = math.floor(x + 0.5), math.floor(y + 0.5)
     local o, l = Take("Text")
     local depth = Layer(z + 0.5)
 
@@ -1491,10 +1492,10 @@ local State = {
     WindowSubtitle = "",
     GameName       = "",
     ShowGameName   = true,
-    ShowLogo       = true,
+    ShowLogo       = false,
     Logo           = nil,
     LogoSource     = nil,
-    LogoSize       = 30,
+    LogoSize       = 28,
     ProfileAvatar  = nil,
     ProfileAvatarSource = nil,
     ProfileAvatarLoading = false,
@@ -1870,7 +1871,7 @@ local function GetRequiredWindowHeight()
     end
     local railW = math.max(Layout.TabRailW, math.floor(State.W * 0.22))
     local brandWidth = math.max(40, railW - 20) - 20
-    local titleLines = #WrapHeaderLines(State.WindowTitle or "Nexa", brandWidth, 20, Fonts.SystemBold)
+    local titleLines = #WrapHeaderLines(State.WindowTitle or "Nexa", brandWidth, 18, Fonts.SystemBold)
     local subtitleLines = State.WindowSubtitle ~= "" and #WrapHeaderLines(State.WindowSubtitle, brandWidth, 12, Fonts.System) or 0
     local brandH = math.max(57, 18 + titleLines * 24 + (subtitleLines > 0 and (subtitleLines * 16 + 8) or 0) + 8)
     local tabH = Layout.TabRowH * 0.96
@@ -2275,9 +2276,9 @@ end
 
 local function ContentHeaderHeight(tab)
     local width = Geometry.ContentW - Layout.ContentPadX * 2
-    local titleLines = #WrapHeaderLines(tab.Name, width, 24, Fonts.SystemBold)
+    local titleLines = #WrapHeaderLines(tab.Name, width, 21, Fonts.SystemBold)
     local subtitleLines = (tab.Subtitle and tab.Subtitle ~= "") and #WrapHeaderLines(tab.Subtitle, width, 14, Fonts.System) or 0
-    return math.max(60, 21 + titleLines * 28 + (subtitleLines > 0 and (subtitleLines * 18 + 10) or 0))
+    return math.max(60, 21 + titleLines * 25 + (subtitleLines > 0 and (subtitleLines * 18 + 10) or 0))
 end
 
 local function StartupRevealCount(total)
@@ -2319,18 +2320,36 @@ local function DrawTabRail()
          th.Stroke, 37, 1, 0.45 * FrameAlpha)
 
     local brandWidth = sectionW - 20
-    local titleLines = #WrapHeaderLines(State.WindowTitle or "Nexa", brandWidth, 20, Fonts.SystemBold)
+    local logoSize = math.max(24, math.min(34, State.LogoSize or 28))
+    local logoX = math.floor(sectionX + sectionW - 11 - logoSize + 0.5)
+    local logoY = math.floor(sectionY + 12 + 0.5)
+    local titleX = sectionX + 11
+    local hasLogo = State.ShowLogo and State.Logo and State.Logo.Image
+    local titleWidth = hasLogo and math.max(32, logoX - titleX - 6) or brandWidth
+    local titleLines = #WrapHeaderLines(State.WindowTitle or "Nexa", titleWidth, 18, Fonts.SystemBold)
     local subtitleLines = State.WindowSubtitle ~= "" and #WrapHeaderLines(State.WindowSubtitle, brandWidth, 12, Fonts.System) or 0
     local brandH = math.max(57, 18 + titleLines * 24 + (subtitleLines > 0 and (subtitleLines * 16 + 8) or 0) + 8)
     if Input.Click and MouseIn(railX + 20, railY + 5, railW - 30, brandH + 8) and not State.Drag then
         BeginDrag()
         Input.Click = false
     end
-    HeaderText(State.WindowTitle or "Nexa", sectionX + 11, sectionY + 13,
-               brandWidth, 20, Fonts.SystemBold, th.Text, 42, FrameAlpha, 4)
+    HeaderText(State.WindowTitle or "Nexa", titleX, sectionY + 13,
+               titleWidth, 18, Fonts.SystemBold, th.Text, 42, 1, 4)
     if subtitleLines > 0 then
-        HeaderText(State.WindowSubtitle, sectionX + 11, sectionY + 18 + titleLines * 24,
-                   brandWidth, 12, Fonts.System, th.TextDim, 42, FrameAlpha, 4)
+        HeaderText(State.WindowSubtitle, titleX, sectionY + 18 + titleLines * 24,
+                   brandWidth, 12, Fonts.System, th.TextDim, 42, 1, 4)
+    end
+    if hasLogo then
+        local logoCut = math.max(5, math.floor(logoSize * 0.23))
+        local logoBackground = rgb(18, 18, 22)
+        CutPanel(logoX, logoY, logoSize, logoSize, logoCut, logoBackground, 43, 1)
+        DrawPicture(State.Logo, logoX, logoY, logoSize, logoSize, Layer(44), FrameAlpha, 0)
+        Triangle(logoX, logoY, logoX + logoCut, logoY,
+                 logoX, logoY + logoCut, logoBackground, 45, 1)
+        Triangle(logoX + logoSize, logoY + logoSize,
+                 logoX + logoSize - logoCut, logoY + logoSize,
+                 logoX + logoSize, logoY + logoSize - logoCut, logoBackground, 45, 1)
+        CutOutline(logoX, logoY, logoSize, logoSize, logoCut, th.Accent, 46, 0.9, 1.5)
     end
     Line(sectionX + 9, sectionY + brandH,
          sectionX + sectionW - 9, sectionY + brandH,
@@ -2409,7 +2428,7 @@ local function DrawTabRail()
             local iconColor = tab.Glow > 0.5 and th.Accent or th.TextDim
 
             if not DrawIconByName(tab.Icon, iconX, iconY, drawIconSize,
-                                  iconColor, 44, iconAlpha) then
+                                  iconColor, 44, iconAlpha * FrameAlpha) then
 
                 Rect(iconX + 3, iconY + 3, math.max(1, drawIconSize - 6), math.max(1, drawIconSize - 6),
                      iconColor, 44, 2, iconAlpha)
@@ -2425,8 +2444,8 @@ local function DrawTabRail()
                     labelColor = th.Text
                     labelAlpha = openAmt
                 end
-                Text(tab.Name, labelX, labelY,
-                     labelColor, Layout.TextSize + 2, Fonts.SystemBold,
+                Text(tab.Name, math.floor(labelX + 0.5), math.floor(labelY + 0.5),
+                     labelColor, Layout.TextSize + 1, Fonts.SystemBold,
                      45, labelAlpha, labelRoom)
             end
 
@@ -4981,22 +5000,39 @@ local function BuildContentLayout(tab, viewportTop, halfW)
     return items, math.max(leftY, rightY) - viewportTop
 end
 
+local TabPageTransition = { Index = 1, Time = 0.38, Duration = 0.38 }
+
+local function PageReveal(progress)
+    progress = Clamp(progress, 0, 1)
+    return 1 - (1 - progress) * (1 - progress) * (1 - progress)
+end
+
 local function DrawContent()
     local tab = State.Tabs[State.ActiveIndex]
     if not tab then return end
 
+    if TabPageTransition.Index ~= State.ActiveIndex then
+        TabPageTransition.Index = State.ActiveIndex
+        TabPageTransition.Time = 0
+    end
+    TabPageTransition.Time = math.min(TabPageTransition.Duration, TabPageTransition.Time + State.Delta)
+    local pageProgress = TabPageTransition.Time / TabPageTransition.Duration
+    local pageBaseAlpha = FrameAlpha
+    FrameAlpha = pageBaseAlpha * (0.22 + 0.78 * PageReveal(pageProgress))
+
+    FrameAlpha = pageBaseAlpha
     local titleY = Geometry.ContentY + 17
     local headerH = ContentHeaderHeight(tab)
     if Input.Click and not State.Drag and not State.Resize and MouseIn(Geometry.ContentX + Layout.ContentPadX, Geometry.ContentY + 4, Geometry.ContentW - Layout.ContentPadX * 2, headerH - 6) then
         BeginDrag()
         Input.Click = false
     end
-    local headerWidth = Geometry.ContentW - Layout.ContentPadX * 2
-    local titleLines = #WrapHeaderLines(tab.Name, headerWidth, 24, Fonts.SystemBold)
+    local headerWidth = math.max(40, Geometry.ContentW - Layout.ContentPadX * 2)
+    local titleLines = #WrapHeaderLines(tab.Name, headerWidth, 21, Fonts.SystemBold)
     HeaderText(tab.Name, Geometry.ContentX + Layout.ContentPadX, titleY,
-               headerWidth, 24, Fonts.SystemBold, State.Theme.Text, 60, 1, 4)
+               headerWidth, 21, Fonts.SystemBold, State.Theme.Text, 60, 1, 4)
     if tab.Subtitle and tab.Subtitle ~= "" then
-        HeaderText(tab.Subtitle, Geometry.ContentX + Layout.ContentPadX, titleY + titleLines * 28 + 4,
+        HeaderText(tab.Subtitle, Geometry.ContentX + Layout.ContentPadX, titleY + titleLines * 25 + 4,
                    headerWidth, 14, Fonts.System, State.Theme.TextDim, 60, 1, 4)
     end
 
@@ -5030,7 +5066,9 @@ local function DrawContent()
     local clipBottom = Geometry.ContentY + Geometry.ContentH - 12
     ActiveClipTop = clipTop
     ActiveClipBottom = clipBottom
-    for _, item in ipairs(items) do
+    for itemIndex, item in ipairs(items) do
+        local revealProgress = Clamp((pageProgress - (itemIndex - 1) * 0.020) / 0.72, 0, 1)
+        FrameAlpha = pageBaseAlpha * PageReveal(revealProgress)
         local row = item.row
         local y = item.y - tab.Scroll
         local h = item.h
@@ -5050,6 +5088,7 @@ local function DrawContent()
         end
     end
 
+    FrameAlpha = pageBaseAlpha
     DrawScrollbar(tab)
     ActiveClipTop = nil
     ActiveClipBottom = nil
@@ -6721,7 +6760,7 @@ function Library:CreateWindow(opts)
 
     local logoSource = opts.Logo
     if logoSource == nil then logoSource = opts.logo end
-    if logoSource == false or State.ShowLogo == false then
+    if logoSource == nil or logoSource == false or logoSource == "" or State.ShowLogo == false then
         HidePicture(State.Logo)
         State.Logo = nil
         State.LogoSource = nil
@@ -6731,7 +6770,7 @@ function Library:CreateWindow(opts)
         State.Logo = LoadPicture(logoSource, "logo")
     end
     local logoSize = tonumber(opts.LogoSize or opts.logoSize)
-    if logoSize then State.LogoSize = math.max(16, math.min(48, logoSize)) end
+    if logoSize then State.LogoSize = math.max(24, math.min(48, logoSize)) end
 
     local backgroundImageSource = opts.BackgroundImage or opts.backgroundImage
     if backgroundImageSource ~= nil and backgroundImageSource ~= State.BackgroundImageSource then
